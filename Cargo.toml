@@ -1,16 +1,15 @@
 [package]
-name = "neorg_se"
+name = "neorg_query"
 version = "0.1.0"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [lib]
-name = "neorg_se"
+name = "neorg_query"
 crate-type = ["cdylib"]
 
 [features]
-luajit = ["mlua/luajit"]
 lua51 = ["mlua/lua51"]
 
 [dependencies]
@@ -20,11 +19,13 @@ dirs = "5.0.1"
 ignore = "0.4.22"
 log = "0.4.22"
 log-panics = "2.1.0"
-mlua = { version = "0.9.9", features = ["module"] }
-neovim-lib = "0.6.1"
+mlua = { version = "0.9.9", features = ["module", "lua51"] }
 once_cell = "1.19.0"
 regex = "1.10.5"
 serde = "1.0.204"
+rust-norg = { git = "https://github.com/benlubas/rust-norg", branch = "push-suompwzwwrpt" } # metadata parser
 serde_json = "1.0.120"
 simplelog = "0.12.2"
-tantivy = "0.22.0"
+libsql = { version = "0.6.0", default-features = false, features = ["core"] }
+itertools = "0.13.0"
+tokio = { version = "1.41.1", features = ["full"] }
