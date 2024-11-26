@@ -1,14 +1,10 @@
-use anyhow::anyhow;
-use ignore::WalkBuilder;
 use itertools::Itertools;
-use libsql::params::IntoParams;
 use rust_norg::metadata::{parse_metadata, NorgMeta};
 use rust_norg::NorgAST;
-use rust_norg::{parse_tree, ParagraphSegment, ParagraphSegmentToken, TodoStatus};
+use rust_norg::{parse_tree, ParagraphSegment, ParagraphSegmentToken};
 use std::io;
-use std::path::Path;
 
-use log::{error, info, warn};
+use log::info;
 
 use std::fs;
 
@@ -109,7 +105,6 @@ impl ParsedDocument {
         let contents = fs::read_to_string(file_path)?;
 
         let ast = parse_tree(&contents);
-        info!("{ast:?}");
 
         let mut doc = ParsedDocument {
             title: None,

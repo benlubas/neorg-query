@@ -1,10 +1,13 @@
 use std::path::Path;
 
 use anyhow::bail;
+use itertools::Itertools;
 use libsql::{Builder, Connection};
+use log::info;
 
 use crate::doc_parser::ParsedDocument;
 
+#[derive(Clone)]
 pub struct DatabaseConnection {
     pub conn: Connection,
     // TODO: store prepared queries maybe? I'm not really sure how those work or how much
@@ -30,12 +33,14 @@ impl DatabaseConnection {
         )
         .await?;
 
+        // if we try to add a cat that already exists for a file, we just do nothing and continue
         conn.execute(
             r#"CREATE TABLE IF NOT EXISTS categories
             (id INTEGER PRIMARY KEY,
             file_id INTEGER,
-            name TEXT,
-            FOREIGN KEY(file_id) REFERENCES docs(id))"#,
+            name VARCHAR(255) NOT NULL,
+            FOREIGN KEY(file_id) REFERENCES docs(id),
+            UNIQUE (file_id, name) ON CONFLICT IGNORE)"#,
             (),
         )
         .await?;
@@ -55,7 +60,20 @@ impl DatabaseConnection {
 
         let row = rows.next().await?;
         if let Some(row) = row {
-            Ok(*row.get_value(0)?.as_integer().ok_or(anyhow::anyhow!("ID isn't an int"))?)
+            let id = *row
+                .get_value(0)?
+                .as_integer()
+                .ok_or(anyhow::anyhow!("ID isn't an int"))?;
+            if !doc.categories.is_empty() {
+                let values = (0..doc.categories.len()).map(|i| format!("(?{}, ?1)", i + 2)).collect_vec().join(",");
+                let cat_query = format!("INSERT INTO categories (name, file_id) VALUES {values}");
+                let mut params = doc.categories.clone();
+                params.insert(0, id.to_string());
+
+                info!("Categories Query: {cat_query}");
+                self.conn.execute(&cat_query, params).await?;
+            }
+            Ok(id)
         } else {
             bail!("Failed to fetch ID")
         }

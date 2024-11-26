@@ -4,7 +4,8 @@
   your notes by running a SQL query.
 
   (Planned) Features:
-  - ( ) Persistent LibSQL database that tracks file metadata and TODO items in each file
+  - (x) Persistent LibSQL database that tracks file metadata for each file
+  -- we create this
   - (x) Parse files with rust-norg parser
   - ( ) `@query` tag that populates on `:Neorg query run`
   - ( ) Update the database on launch
@@ -12,10 +13,89 @@
   -- ( ) remove files that are deleted
   -- ( ) add/parse files that are new
   - ( ) Watch current workspace and update on file changes. Debounce this.
+  - ( ) Eventual todo item support..
+  -- this could noticeably increase the parse time
+  - ( ) Possible optional plaintext support for vector search and specific paragraph
+        retrieval. This would increase the size of the DB by a lot
 
 ** TODO:
 
 *** (x) Ability to parse documents by filename
-*** (-) Ability to create a database and the required tables
-*** ( ) Ability to add files to that database
+*** (x) Ability to create a database and the required tables
+*** (x) Ability to add files to that database
+*** (x) Add categories
+*** (x) Update files without duplicating data
+*** ( ) Only re-parse changed files
+    We already store the `changed` metadata for them, I'm pretty sure that's usable
+    to compare with the file system's touched time. We will end up doing some
+    unnecessary work here, specifically if git or other version control does
+    anything weird. but...
+
+    *Does git update the changed time of a file if you switch branches for example?*
+    surely not
+
+*** ( ) mlua bindings. How the fuck does mlua + async work... does it work?
+    I think that we'll have to spawn threads and then callback from those threads
+    when the task is complete. As long as that's not crazy hard to do it'll be fine.
+    Ideally it would just work out the box, but...
+
+*** ( ) Neovim interface
+    - ( ) Can we put the DB in safe mode when running queries from neovim.
+    -- Potentially running a drop command from neovim, while entirely the user's
+       fault, would still suck, and should not be possible.
+    -- If not, we could parse the SQL ourselves, and ensure that only `SELECT` commands
+       are able to run
+
+**** ( ) Way to run user queries against the DB
+**** ( ) Format the results in a pleasing way
+**** ( ) Custom format strings that the use specifies?
+     I'm not sure how formatting should work. There's a solid chance that formatting
+     results is the hardest part of this entire project. It's certainly the most
+     subjective.
+
+     - If you select paths, you should get links
+     - if you select anything else, you should get plaintext, probably
+     - if you select more than one thing, what would you get? List? Headers?
+
+***** Formatting examples
+
+      *note:* the goal UI currently is this, where `|@query <sql_query>|` is a ranged
+      tag, and the inside of the tag is populated with the results when the command
+      is run. This means that the results can be /real/ text, saved to the file, and
+      we can also include a tag like `last run: 2024-11-26.12:10` or something to
+      remind the user that this doesn't live update or anything.
+
+      Here are some examples of what I imagine this looking like. There's a few
+      questions that remain, will make sure to mark those.
+
+****** Basic Recently Edited files
+       I'll note that the TS parser is going to fight us here if we want to use real
+       sql syntax for dates and like `table.field` will not work either
+
+       @query SELECT path FROM docs WHERE updated > '2024 11 26'
+       - {:$/eng:}
+       - {:$/index:}
+       - {:$/gtd:}
+       @end
+
+****** Files and Titles
+       when you select path and title, you should get the title as the name of the
+       link. This is all very arbitrary.
+
+       @query SELECT path, title FROM docs WHERE updated > '2024 11 26'
+       - {:$/eng:}[Engineering notes]
+       - {:$/index:}[Something]
+       - {:$/gtd:}[Getting things done organizational system]
+       @end
+
+****** Custom format string
+       This will probably require custom syntax parsing, or at least a little bit of
+       it to find the names, unless the names are included in the result I forget.
+
+       #format `|{$path}[$title] - $created|`
+       @query SELECT path, title, created FROM docs ORDER BY created LIMIT 3
+       - {:$/index:}[Index] - 2023-08-1:....
+       - {:$/index:}[Index] - 2023-08-1:....
+       - {:$/index:}[Index] - 2023-08-1:....
+       @end
 

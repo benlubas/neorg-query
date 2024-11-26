@@ -29,3 +29,4 @@ simplelog = "0.12.2"
 libsql = { version = "0.6.0", default-features = false, features = ["core"] }
 itertools = "0.13.0"
 tokio = { version = "1.41.1", features = ["full"] }
+walkdir = "2.5.0"

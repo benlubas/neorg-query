@@ -1,13 +1,9 @@
-mod doc_parser;
-
 use std::{path::Path, sync::mpsc::channel};
 use anyhow::Result;
-use db::DatabaseConnection;
-use doc_parser::ParsedDocument;
+use crate::DatabaseConnection;
+use crate::ParsedDocument;
 use ignore::{types::TypesBuilder, WalkBuilder};
 use log::info;
-
-mod db;
 
 pub async fn index_workspace(workspace_path: &Path, conn: DatabaseConnection) -> Result<DatabaseConnection> {
     info!("Indexing {workspace_path:?}\n...");

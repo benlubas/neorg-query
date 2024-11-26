@@ -1,6 +1,8 @@
 .luarc.json
 .direnv/
-neorg-SE.log
+neorg-query.log
+# test database files
+*.sql
 
 # Compiled Lua sources
 luac.out
