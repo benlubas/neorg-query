@@ -1,8 +1,9 @@
 use std::path::Path;
 
 use anyhow::bail;
+use chrono::{DateTime, Utc};
 use itertools::Itertools;
-use libsql::{Builder, Connection};
+use libsql::{params, Builder, Connection, OpenFlags, Rows};
 use log::info;
 
 use crate::doc_parser::ParsedDocument;
@@ -10,6 +11,7 @@ use crate::doc_parser::ParsedDocument;
 #[derive(Clone)]
 pub struct DatabaseConnection {
     pub conn: Connection,
+    pub read_conn: Connection,
     // TODO: store prepared queries maybe? I'm not really sure how those work or how much
     // performance they gain
 }
@@ -18,7 +20,12 @@ impl DatabaseConnection {
     /// Create the database connection, and ensure that any tables we use exist
     pub async fn new(db_file: &Path) -> anyhow::Result<DatabaseConnection> {
         let db = Builder::new_local(db_file).build().await?;
+        let read_db = Builder::new_local(db_file)
+            .flags(OpenFlags::SQLITE_OPEN_READ_ONLY)
+            .build()
+            .await?;
         let conn = db.connect()?;
+        let read_conn = read_db.connect()?;
 
         // should we parameterize on workspace? One table per workspace?
         conn.execute(
@@ -26,6 +33,7 @@ impl DatabaseConnection {
             (id INTEGER PRIMARY KEY,
             path VARCHAR(1024) UNIQUE NOT NULL,
             title TEXT,
+            description TEXT,
             authors TEXT,
             created DATETIME,
             updated DATETIME)"#,
@@ -45,14 +53,14 @@ impl DatabaseConnection {
         )
         .await?;
 
-        Ok(DatabaseConnection { conn })
+        Ok(DatabaseConnection { conn, read_conn })
     }
 
     /// Insert a doc or update it if it exists, returning the ID of the doc we just created.
     pub async fn insert_or_update_doc(&self, doc: &ParsedDocument) -> anyhow::Result<i64> {
         let mut rows = self.conn.query(
-            "INSERT INTO docs (path, title, authors, created, updated)
-             VALUES (?1, ?2, ?3, ?4, ?5)
+            "INSERT INTO docs (path, title, description, authors, created, updated)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6)
              ON CONFLICT(path) DO UPDATE SET title=excluded.title, authors=excluded.authors, updated=excluded.updated
              RETURNING id",
             doc.doc_params(),
@@ -64,18 +72,68 @@ impl DatabaseConnection {
                 .get_value(0)?
                 .as_integer()
                 .ok_or(anyhow::anyhow!("ID isn't an int"))?;
+
+            self.conn
+                .execute("DELETE FROM categories WHERE file_id = ?1", [id])
+                .await?;
+
             if !doc.categories.is_empty() {
-                let values = (0..doc.categories.len()).map(|i| format!("(?{}, ?1)", i + 2)).collect_vec().join(",");
+                let values = (0..doc.categories.len())
+                    .map(|i| format!("(?{}, ?1)", i + 2))
+                    .collect_vec()
+                    .join(",");
                 let cat_query = format!("INSERT INTO categories (name, file_id) VALUES {values}");
                 let mut params = doc.categories.clone();
                 params.insert(0, id.to_string());
 
-                info!("Categories Query: {cat_query}");
                 self.conn.execute(&cat_query, params).await?;
             }
             Ok(id)
         } else {
             bail!("Failed to fetch ID")
+        }
+    }
+
+    /// Get the `edited` date that we've stored for the file, parse it into a DateTime
+    pub async fn get_edited_date(&self, path: &str) -> anyhow::Result<DateTime<Utc>> {
+        let mut rows = self
+            .conn
+            .query("SELECT updated FROM docs WHERE path=?1", params![path])
+            .await?;
+
+        if let Ok(Some(row)) = rows.next().await {
+            if let Ok(date) = row.get_str(0) {
+                return Ok(date.parse::<DateTime<Utc>>()?);
+            }
+        }
+
+        bail!("No created at entry for this path");
+    }
+
+    /// Execute a query in read only mode, return the result
+    pub async fn user_query(
+        &self,
+        query: &str,
+        params: impl params::IntoParams + std::fmt::Debug,
+    ) -> anyhow::Result<Rows> {
+        info!("Running Query: {query}");
+        info!("With Params: {params:?}");
+        Ok(self.read_conn.query(query, params).await?)
+    }
+}
+
+pub mod util {
+    use libsql::Row;
+
+    /// Get a string value from a column, checking the types along the way
+    pub fn gets_checked(row: &Row, column: i32) -> Option<String> {
+        match row.column_type(column) {
+            Ok(t) => match t {
+                libsql::ValueType::Null => None,
+                libsql::ValueType::Text => row.get_str(column).ok().map(String::from),
+                _ => None,
+            },
+            Err(_) => None,
         }
     }
 }

@@ -1,3 +1,13 @@
+@document.meta
+title: README
+description: 
+authors: benlubas
+categories: 
+created: 2024-11-27T15:53:11-0500
+updated: 2024-11-30T09:18:28-0500
+version: 1.1.1
+@end
+
 * neorg-query
 
   This is a toy/POC concept for a plugin that allows dynamic query running to populate sections of
@@ -25,7 +35,7 @@
 *** (x) Ability to add files to that database
 *** (x) Add categories
 *** (x) Update files without duplicating data
-*** ( ) Only re-parse changed files
+*** (x) Only re-parse changed files
     We already store the `changed` metadata for them, I'm pretty sure that's usable
     to compare with the file system's touched time. We will end up doing some
     unnecessary work here, specifically if git or other version control does
@@ -34,12 +44,43 @@
     *Does git update the changed time of a file if you switch branches for example?*
     surely not
 
-*** ( ) mlua bindings. How the fuck does mlua + async work... does it work?
-    I think that we'll have to spawn threads and then callback from those threads
-    when the task is complete. As long as that's not crazy hard to do it'll be fine.
-    Ideally it would just work out the box, but...
+*** ( ) mlua bindings
+    - (x) new version of mlua
+    - (x) enable async and all that shit
+    - (x) write all the functions that we need. woo. this is going to be interesting,
+          I have no clue how this will work
 
-*** ( ) Neovim interface
+**** how do we async properly?
+     Currently the indexing is blocking nvim, even though it is async. I think this
+     is b/c we're polling it over and over again and waiting for the response is just
+     taking too much time from the event loop.
+
+     I really am not familiar with how this stuff works, so I'm not sure how to best
+     fix it. Potentially spawning a thread to work on could fix the issue.
+
+     Note that sleeping does not block neovim even though we still constantly poll
+     that one. Which suggests that the working function is not yielding fast enough
+     to not be blocking.
+
+***** Callbacks
+      I also wonder, b/c we're stuck using callbacks anyway, would we be able to just
+      pass a callback directly to the function and then call it from a separate thread
+      in rust? Is that doable? This would remove the need for polling all together,
+      and we could just act in the callback.
+
+      *this does not work*. Send is not available in module mode, and you need send
+      to be able to use the `Lua` object or a `LuaFunction` in the spawned task. so there
+      is no way to call that function when the work is done..
+
+      This does make me think though. Is it even necessary to notify that the
+      indexing process is finished?
+
+*** ( ) Index when neovim starts up
+*** ( ) Index a single file when it's changed (neovim can watch with autocommands)
+    Watching with autocommands is probably good enough. We could have a file watcher
+    in rust, but I think that's probably overkill. I don't anticipate that people
+    will change norg files outside of neovim at the moment.
+*** ( ) Neovim @query interface
     - ( ) Can we put the DB in safe mode when running queries from neovim.
     -- Potentially running a drop command from neovim, while entirely the user's
        fault, would still suck, and should not be possible.

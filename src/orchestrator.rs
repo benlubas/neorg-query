@@ -1,11 +1,20 @@
-use std::{path::Path, sync::mpsc::channel};
-use anyhow::Result;
 use crate::DatabaseConnection;
-use crate::ParsedDocument;
+use crate::doc_parser::ParsedDocument;
+use anyhow::Result;
+use chrono::DateTime;
+use chrono::Utc;
+use ignore::DirEntry;
 use ignore::{types::TypesBuilder, WalkBuilder};
 use log::info;
+use std::convert::identity;
+use std::{path::Path, sync::mpsc::channel};
 
-pub async fn index_workspace(workspace_path: &Path, conn: DatabaseConnection) -> Result<DatabaseConnection> {
+/// Parse all the files in the workspace, skipping files that were last edited within a few ms of
+/// the edited time we have for them.
+pub async fn index_workspace(
+    workspace_path: &Path,
+    conn: &DatabaseConnection,
+) -> Result<()> {
     info!("Indexing {workspace_path:?}\n...");
 
     let mut types = TypesBuilder::new();
@@ -22,7 +31,6 @@ pub async fn index_workspace(workspace_path: &Path, conn: DatabaseConnection) ->
                 // TODO: batch these eventually?
                 x.clone().insert_or_update_doc(&doc).await.unwrap();
             } else {
-                // sending None is the way to indicate that we're done.
                 break;
             }
         }
@@ -37,79 +45,43 @@ pub async fn index_workspace(workspace_path: &Path, conn: DatabaseConnection) ->
     //     WalkState::Continue
     // }));
     info!("Walking..");
-    for entry in WalkBuilder::new(workspace_path).types(types).build().flatten() {
-        if let Ok(doc) = ParsedDocument::new(&entry.path().to_string_lossy()) {
+    for entry in WalkBuilder::new(workspace_path)
+        .types(types)
+        .build()
+        .flatten()
+    {
+        let path = entry.path();
+        if path.is_dir() || !path.extension().is_some_and(|ext| ext == "norg") {
+            continue;
+        }
+        let path = path.to_string_lossy();
+        let stored_edit_time = conn.get_edited_date(&path).await;
+
+        if stored_edit_time.is_ok_and(|t| !should_parse(&entry, t).is_ok_and(identity)) {
+            info!("Skipping {path:?}");
+            continue;
+        };
+
+        info!("Parsing {path:?}");
+        // TODO: this parsing step is expensive, should spawn it into a task probably
+        if let Ok(doc) = ParsedDocument::new(&path) {
             tx.send(Some(doc)).unwrap();
         };
     }
     info!("Done walking");
+    // this is the way we tell the insert job to stop listening
     tx.send(None).unwrap();
 
-    // I think this will infinitely loop b/c the receiver listens forever, how do we close it,
-    // I guess we could change the type to option
     let _ = insert_job.await;
 
-    Ok(conn)
+    Ok(())
 }
 
-// fn index(_: &Lua, (ws_name, ws_path): (String, String)) -> LuaResult<()> {
-//     info!("[INDEX] start");
-//
-//     info!("[INDEX] {ws_name}, {ws_path}");
-//     thread::spawn(move || {
-//         // Yeah I'm not stoked about this. But I think that it's fine. This is a data-race, but we
-//         // can't call into more than one function at a time. We're bound to one thread.
-//         if let Ok(mut search_engine) = SEARCH_ENGINE.write() {
-//             match search_engine.index(&ws_path, &ws_name) {
-//                 Ok(_) => {
-//                     info!("[Index] Success");
-//                 }
-//                 Err(e) => {
-//                     info!("[Index] Failed with error: {e:?}");
-//                 }
-//             };
-//         }
-//     });
-//
-//     info!("[Index] returning");
-//
-//     Ok(())
-// }
-//
-// fn list_categories(_: &Lua, _: ()) -> LuaResult<Vec<String>> {
-//     // set the categories
-//     match SEARCH_ENGINE.read() {
-//         Ok(search_engine) => {
-//             if let Ok(cats) = search_engine.list_categories() {
-//                 info!("[LIST CATS] result: {cats:?}");
-//                 Ok(cats)
-//             } else {
-//                 // TODO: should this be a different error?
-//                 Ok(vec![])
-//             }
-//         }
-//         Err(e) => {
-//             warn!("[LIST CATS] Failed to aquire read lock on SEARCH_ENGINE: {e:?}");
-//             Ok(vec![])
-//         }
-//     }
-// }
-//
-// #[mlua::lua_module]
-// fn libneorg_se(lua: &Lua) -> LuaResult<LuaTable> {
-//     // Yeah I'm not sure where else this log setup could even go
-//     CombinedLogger::init(vec![WriteLogger::new(
-//         LevelFilter::Info,
-//         Config::default(),
-//         File::create("/tmp/neorg-SE.log").unwrap(),
-//     )])
-//     .unwrap();
-//     log_panics::init();
-//
-//     let exports = lua.create_table()?;
-//     exports.set("query", lua.create_function(query)?)?;
-//     exports.set("index", lua.create_function(index)?)?;
-//     exports.set("list_categories", lua.create_function(list_categories)?)?;
-//
-//     Ok(exports)
-// }
+fn should_parse(entry: &DirEntry, edited_date: DateTime<Utc>) -> anyhow::Result<bool> {
+    let modified: i64 = entry
+        .metadata()?
+        .modified()?
+        .duration_since(std::time::UNIX_EPOCH)?
+        .as_secs() as i64;
+    Ok((modified - edited_date.timestamp()).abs() > 1)
+}

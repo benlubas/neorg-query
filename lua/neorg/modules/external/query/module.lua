@@ -14,19 +14,23 @@ local modules = neorg.modules
 local log = neorg.log
 
 local module = modules.create("external.query")
+local Path = require("pathlib")
 
-local rs_query
+---@type libneorg_query.api
+local query
+---@type core.dirman
+local dirman
 
 module.config.public = {
     index_on_launch = true,
 }
 
 module.setup = function()
-    local ok, res = pcall(require, "libneorg_query")
+    local ok, res = pcall(require, "libneorg_query.api")
     if ok then
-        rs_query = res
+        query = res
     else
-        log.error("[Neorg Search] Failed to load `libneorg_query`.\n"..res)
+        log.error("[Neorg Search] Failed to load `libneorg_query`.\n" .. res)
     end
     return {
         success = ok,
@@ -38,7 +42,6 @@ module.setup = function()
     }
 end
 
-local dirman
 module.load = function()
     log.info("loaded search module")
     module.required["core.neorgcmd"].add_commands_from_table({
@@ -67,7 +70,7 @@ module.load = function()
 end
 
 ---@class external.query
-module.public = { }
+module.public = {}
 
 module.events.subscribed = {
     ["core.neorgcmd"] = {
@@ -89,9 +92,18 @@ end
 module.private["query.index"] = function(_)
     local ws = dirman.get_current_workspace()
 
-    -- note that this function spawns a thread to do the work and then returns immediately so it
-    -- doesn't block or contribute to startup time
-    rs_query.index(ws[1], tostring(ws[2]))
+    local db_path = Path(vim.fn.stdpath("data")) / "neorg" / "query"
+    -- make the directory if it doesn't exist
+    db_path:mkdir(Path.permission("rwxr-xr-x"), true)
+
+    query.greet("ben", function (res)
+        print(res)
+    end)
+    -- query.init(tostring(db_path / "db.sqlite"), tostring(ws[2]), function(success)
+    --     if success then
+    --         print("Yay! we made it through the entire indexing process!")
+    --     end
+    -- end)
 end
 
 return module

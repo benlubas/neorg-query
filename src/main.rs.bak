@@ -43,8 +43,8 @@ async fn main() -> anyhow::Result<()> {
     // info!("Doc: {doc:?}");
 
     let db_path = Path::new("./test.sql");
-    // let ws_path = Path::new("/Users/benlubas/test_notes");
-    let ws_path = Path::new("/Users/benlubas/notes");
+    // let ws_path = Path::new("/Users/benlubas/notes");
+    let ws_path = Path::new("/Users/benlubas/test_notes");
 
     info!("DB Path: {db_path:?}");
     info!("WS Path: {ws_path:?}");

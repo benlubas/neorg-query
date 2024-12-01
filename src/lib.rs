@@ -1,119 +1,105 @@
-mod doc_parser;
-
-use std::{path::Path, sync::mpsc::channel};
-use anyhow::Result;
-use db::DatabaseConnection;
-use doc_parser::ParsedDocument;
-use ignore::{types::TypesBuilder, WalkBuilder};
-use log::info;
-
 mod db;
+mod doc_parser;
+mod orchestrator;
 
-pub async fn index_workspace(workspace_path: &Path, conn: DatabaseConnection) -> Result<DatabaseConnection> {
-    info!("Indexing {workspace_path:?}\n...");
+use std::{
+    path::Path,
+    sync::{Arc, OnceLock},
+};
 
-    let mut types = TypesBuilder::new();
-    types.add("norg", "*.norg")?;
-    let types = types.build()?;
+use anyhow::anyhow;
+use db::{util::gets_checked, DatabaseConnection};
+use itertools::Itertools;
+use mlua::prelude::*;
+use once_cell::sync::Lazy;
+use serde::{Deserialize, Serialize};
+use tokio::runtime;
 
-    let (tx, rx) = channel::<Option<ParsedDocument>>();
+static DB: OnceLock<DatabaseConnection> = OnceLock::new();
 
-    let x = conn.clone();
-    let insert_job = tokio::spawn(async move {
-        info!("insert job waiting");
-        for doc in rx {
-            if let Some(doc) = doc {
-                // TODO: batch these eventually?
-                x.clone().insert_or_update_doc(&doc).await.unwrap();
-            } else {
-                // sending None is the way to indicate that we're done.
-                break;
-            }
-        }
-    });
+static TOKIO: Lazy<runtime::Runtime> = Lazy::new(|| {
+    runtime::Builder::new_multi_thread()
+        .enable_all()
+        .build()
+        .expect("cannot start tokio runtime")
+});
 
-    // WalkBuilder::new(workspace_path).types(types).build_parallel().run(|| Box::new(|path| {
-    //     if let Ok(path) = path {
-    //         if let Ok(doc) = ParsedDocument::new(&path.path().to_string_lossy()) {
-    //             let _ = tx.send(doc);
-    //         };
-    //     }
-    //     WalkState::Continue
-    // }));
-    info!("Walking..");
-    for entry in WalkBuilder::new(workspace_path).types(types).build().flatten() {
-        if let Ok(doc) = ParsedDocument::new(&entry.path().to_string_lossy()) {
-            tx.send(Some(doc)).unwrap();
-        };
-    }
-    info!("Done walking");
-    tx.send(None).unwrap();
+/// - Initialize the Database connection
+/// - Perform the initial workspace index
+/// - Return nothing, right?
+async fn init(_: Lua, (database_path, workspace_path): (String, String)) -> LuaResult<bool> {
+    let _guard = TOKIO.enter();
 
-    // I think this will infinitely loop b/c the receiver listens forever, how do we close it,
-    // I guess we could change the type to option
-    let _ = insert_job.await;
+    let ws_path = Path::new(&workspace_path);
+    let db = DatabaseConnection::new(Path::new(&database_path)).await?;
 
-    Ok(conn)
+    orchestrator::index_workspace(ws_path, &db).await?;
+    let _ = DB.set(db);
+
+    Ok(true)
 }
 
-// fn index(_: &Lua, (ws_name, ws_path): (String, String)) -> LuaResult<()> {
-//     info!("[INDEX] start");
-//
-//     info!("[INDEX] {ws_name}, {ws_path}");
-//     thread::spawn(move || {
-//         // Yeah I'm not stoked about this. But I think that it's fine. This is a data-race, but we
-//         // can't call into more than one function at a time. We're bound to one thread.
-//         if let Ok(mut search_engine) = SEARCH_ENGINE.write() {
-//             match search_engine.index(&ws_path, &ws_name) {
-//                 Ok(_) => {
-//                     info!("[Index] Success");
-//                 }
-//                 Err(e) => {
-//                     info!("[Index] Failed with error: {e:?}");
-//                 }
-//             };
-//         }
-//     });
-//
-//     info!("[Index] returning");
-//
-//     Ok(())
-// }
-//
-// fn list_categories(_: &Lua, _: ()) -> LuaResult<Vec<String>> {
-//     // set the categories
-//     match SEARCH_ENGINE.read() {
-//         Ok(search_engine) => {
-//             if let Ok(cats) = search_engine.list_categories() {
-//                 info!("[LIST CATS] result: {cats:?}");
-//                 Ok(cats)
-//             } else {
-//                 // TODO: should this be a different error?
-//                 Ok(vec![])
-//             }
-//         }
-//         Err(e) => {
-//             warn!("[LIST CATS] Failed to aquire read lock on SEARCH_ENGINE: {e:?}");
-//             Ok(vec![])
-//         }
-//     }
-// }
-//
-// #[mlua::lua_module]
-// fn libneorg_se(lua: &Lua) -> LuaResult<LuaTable> {
-//     // Yeah I'm not sure where else this log setup could even go
-//     CombinedLogger::init(vec![WriteLogger::new(
-//         LevelFilter::Info,
-//         Config::default(),
-//         File::create("/tmp/neorg-SE.log").unwrap(),
-//     )])
-//     .unwrap();
-//     log_panics::init();
-//
-//     let exports = lua.create_table()?;
-//     exports.set("query", lua.create_function(query)?)?;
-//     exports.set("index", lua.create_function(index)?)?;
-//     exports.set("list_categories", lua.create_function(list_categories)?)?;
-//
-//     Ok(exports)
-// }
+#[derive(Debug, Serialize, Deserialize)]
+struct CategoryQueryResponse {
+    path: String,
+    title: Option<String>,
+    description: Option<String>,
+    created: Option<String>,
+    updated: Option<String>,
+}
+
+async fn category_query(lua: Lua, categories: Vec<String>) -> LuaResult<Vec<LuaValue>> {
+    let _guard = TOKIO.enter();
+
+    if categories.is_empty() {
+        // I feel like this will be slower, even though it's easier to write. I'm annoyed that just
+        // bail! doesn't automatically type convert
+        // (|| bail!("Need at least one category"))()?;
+        return Err(anyhow!("Need at least one category").into_lua_err());
+    }
+
+    let db = DB.get().unwrap();
+    let q = "SELECT path, title, description, created, updated FROM docs d JOIN categories c ON d.id = c.file_id WHERE "
+        .to_string()
+        + &(0..categories.len())
+            .map(|i| format!("c.name = ?{}", i + 1))
+            .join(" AND ");
+
+    let mut rows = db.user_query(&q, categories).await?;
+    let mut res = vec![];
+    while let Ok(Some(row)) = rows.next().await {
+        res.push(lua.to_value(&CategoryQueryResponse {
+            path: gets_checked(&row, 0).unwrap(),
+            title: gets_checked(&row, 1),
+            description: gets_checked(&row, 2),
+            created: gets_checked(&row, 3),
+            updated: gets_checked(&row, 4),
+        })?)
+    }
+
+    Ok(res)
+}
+
+async fn greet(_lua: Lua, name: String) -> LuaResult<String> {
+    let _guard = TOKIO.enter();
+
+    tokio::time::sleep(std::time::Duration::from_secs(3)).await;
+    Ok(format!("Hello {name}!").to_string())
+}
+
+#[mlua::lua_module]
+fn libneorg_query(lua: &Lua) -> LuaResult<LuaTable> {
+    let exports = lua.create_table()?;
+    exports.set("init", lua.create_async_function(init)?)?;
+    exports.set("category_query", lua.create_async_function(category_query)?)?;
+    exports.set("greet", lua.create_async_function(greet)?)?;
+
+    exports.set(
+        "PENDING",
+        lua.create_async_function(|_, ()| async move {
+            tokio::task::yield_now().await;
+            Ok(())
+        })?,
+    )?;
+    Ok(exports)
+}

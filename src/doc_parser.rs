@@ -4,8 +4,6 @@ use rust_norg::NorgAST;
 use rust_norg::{parse_tree, ParagraphSegment, ParagraphSegmentToken};
 use std::io;
 
-use log::info;
-
 use std::fs;
 
 // pub struct TaskItem {
@@ -18,6 +16,7 @@ pub struct ParsedDocument {
     /// absolute file path
     pub path: String,
     pub title: Option<String>,
+    pub description: Option<String>,
     pub categories: Vec<String>,
     pub authors: Vec<String>,
     pub created_date: Option<String>,
@@ -40,6 +39,7 @@ impl ParsedDocument {
     ) -> (
         String,
         Option<String>,
+        Option<String>,
         String,
         Option<String>,
         Option<String>,
@@ -47,6 +47,7 @@ impl ParsedDocument {
         (
             self.path.clone(),
             self.title.clone(),
+            self.description.clone(),
             self.authors.join(""),
             self.created_date.clone(),
             self.updated_date.clone(),
@@ -108,6 +109,7 @@ impl ParsedDocument {
 
         let mut doc = ParsedDocument {
             title: None,
+            description: None,
             categories: vec![],
             path: file_path.to_string(),
             authors: vec![],
@@ -138,6 +140,7 @@ impl ParsedDocument {
                             };
 
                             doc.title = gets("title");
+                            doc.description = gets("description");
                             doc.created_date = gets("created");
                             doc.updated_date = gets("updated");
 
