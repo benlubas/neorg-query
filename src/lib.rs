@@ -2,10 +2,7 @@ mod db;
 mod doc_parser;
 mod orchestrator;
 
-use std::{
-    path::Path,
-    sync::{Arc, OnceLock},
-};
+use std::{fs::File, path::Path, sync::OnceLock};
 
 use anyhow::anyhow;
 use db::{util::gets_checked, DatabaseConnection};
@@ -13,7 +10,8 @@ use itertools::Itertools;
 use mlua::prelude::*;
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
-use tokio::runtime;
+use simplelog::{CombinedLogger, WriteLogger};
+use tokio::runtime::{self};
 
 static DB: OnceLock<DatabaseConnection> = OnceLock::new();
 
@@ -27,16 +25,53 @@ static TOKIO: Lazy<runtime::Runtime> = Lazy::new(|| {
 /// - Initialize the Database connection
 /// - Perform the initial workspace index
 /// - Return nothing, right?
-async fn init(_: Lua, (database_path, workspace_path): (String, String)) -> LuaResult<bool> {
-    let _guard = TOKIO.enter();
+async fn init(
+    _: Lua,
+    (database_path, workspace_path, index): (String, String, bool),
+) -> LuaResult<bool> {
+    let handle = TOKIO.handle();
 
-    let ws_path = Path::new(&workspace_path);
-    let db = DatabaseConnection::new(Path::new(&database_path)).await?;
+    let res = handle
+        .spawn(async move {
+            let ws_path = Path::new(&workspace_path);
+            let db = DatabaseConnection::new(Path::new(&database_path))
+                .await
+                .unwrap();
 
-    orchestrator::index_workspace(ws_path, &db).await?;
-    let _ = DB.set(db);
+            let _ = DB.set(db);
+            if index {
+                let db = DB.get().unwrap();
+                orchestrator::index_workspace(ws_path, db).await
+            } else {
+                Ok(())
+            }
+        })
+        .await;
 
-    Ok(true)
+    Ok(res.is_ok())
+}
+
+async fn index(_: Lua, path: String) -> LuaResult<bool> {
+    let handle = TOKIO.handle();
+    let db = DB.get().unwrap();
+
+    let p = Path::new(&path);
+    if !p.exists() {
+        return Err(anyhow!("Path doesn't exist").into_lua_err());
+    }
+
+    let res = handle
+        .spawn(async move {
+            let path = Path::new(&path);
+            if path.is_file() {
+                orchestrator::index_file(path, db).await
+            } else {
+                orchestrator::index_workspace(path, db).await
+            }
+        })
+        .await;
+
+    Ok(res.is_ok())
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -49,50 +84,90 @@ struct CategoryQueryResponse {
 }
 
 async fn category_query(lua: Lua, categories: Vec<String>) -> LuaResult<Vec<LuaValue>> {
-    let _guard = TOKIO.enter();
+    let handle = TOKIO.handle();
 
-    if categories.is_empty() {
-        // I feel like this will be slower, even though it's easier to write. I'm annoyed that just
-        // bail! doesn't automatically type convert
-        // (|| bail!("Need at least one category"))()?;
-        return Err(anyhow!("Need at least one category").into_lua_err());
-    }
+    let res = handle.spawn(async move {
+        if categories.is_empty() {
+            // I feel like this will be slower, even though it's easier to write. I'm annoyed that just
+            // bail! doesn't automatically type convert
+            // (|| bail!("Need at least one category"))()?;
+            return Err(anyhow!("Need at least one category").into_lua_err());
+        }
 
-    let db = DB.get().unwrap();
-    let q = "SELECT path, title, description, created, updated FROM docs d JOIN categories c ON d.id = c.file_id WHERE "
-        .to_string()
-        + &(0..categories.len())
-            .map(|i| format!("c.name = ?{}", i + 1))
-            .join(" AND ");
+        let db = DB.get().unwrap();
+        let q = "SELECT path, title, description, created, updated FROM docs d JOIN categories c ON d.id = c.file_id WHERE "
+            .to_string()
+            + &(0..categories.len())
+                .map(|i| format!("c.name = ?{}", i + 1))
+                .join(" AND ");
 
-    let mut rows = db.user_query(&q, categories).await?;
-    let mut res = vec![];
-    while let Ok(Some(row)) = rows.next().await {
-        res.push(lua.to_value(&CategoryQueryResponse {
-            path: gets_checked(&row, 0).unwrap(),
-            title: gets_checked(&row, 1),
-            description: gets_checked(&row, 2),
-            created: gets_checked(&row, 3),
-            updated: gets_checked(&row, 4),
-        })?)
-    }
+        let mut rows = db.user_query(&q, categories).await?;
+        let mut res = vec![];
+        while let Ok(Some(row)) = rows.next().await {
+            res.push(CategoryQueryResponse {
+                path: gets_checked(&row, 0).unwrap(),
+                title: gets_checked(&row, 1),
+                description: gets_checked(&row, 2),
+                created: gets_checked(&row, 3),
+                updated: gets_checked(&row, 4),
+            })
+        }
 
-    Ok(res)
+        Ok(res)
+    }).await;
+
+    Ok(res
+        .unwrap()
+        .unwrap()
+        .iter()
+        .filter_map(|x| lua.to_value(&x).ok())
+        .collect())
 }
 
-async fn greet(_lua: Lua, name: String) -> LuaResult<String> {
-    let _guard = TOKIO.enter();
+async fn all_categories(_lua: Lua, _: ()) -> LuaResult<Vec<String>> {
+    let handle = TOKIO.handle();
 
-    tokio::time::sleep(std::time::Duration::from_secs(3)).await;
-    Ok(format!("Hello {name}!").to_string())
+    let res = handle
+        .spawn(async move {
+            let db = DB.get().unwrap();
+            let q = "SELECT DISTINCT name FROM categories";
+
+            let mut rows = db.user_query(q, ()).await?;
+            let mut res = vec![];
+            while let Ok(Some(row)) = rows.next().await {
+                if let Some(name) = gets_checked(&row, 0) {
+                    res.push(name);
+                }
+            }
+            Ok::<Vec<String>, anyhow::Error>(res)
+        })
+        .await;
+
+    Ok(res.unwrap().unwrap())
 }
+
+// async fn greet(_lua: Lua, name: String) -> LuaResult<String> {
+//     let _guard = TOKIO.enter();
+//
+//     tokio::time::sleep(std::time::Duration::from_secs(3)).await;
+//     Ok(format!("Hello {name}!").to_string())
+// }
 
 #[mlua::lua_module]
 fn libneorg_query(lua: &Lua) -> LuaResult<LuaTable> {
+    CombinedLogger::init(vec![WriteLogger::new(
+        log::LevelFilter::Info,
+        simplelog::Config::default(),
+        File::create("/tmp/neorg-query.log").unwrap(),
+    )])
+    .unwrap();
+    log_panics::init();
+
     let exports = lua.create_table()?;
     exports.set("init", lua.create_async_function(init)?)?;
+    exports.set("index", lua.create_async_function(index)?)?;
     exports.set("category_query", lua.create_async_function(category_query)?)?;
-    exports.set("greet", lua.create_async_function(greet)?)?;
+    exports.set("all_categories", lua.create_async_function(all_categories)?)?;
 
     exports.set(
         "PENDING",

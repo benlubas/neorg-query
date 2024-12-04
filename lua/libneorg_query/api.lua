@@ -7,7 +7,7 @@ local query = require("libneorg_query")
 ---@class libneorg_query.api
 local M = {}
 
-M.PENDING = (coroutine.wrap(query.PENDING))()
+local PENDING = (coroutine.wrap(query.PENDING))()
 
 ---Wrap an async rust function in a coroutine that neovim will poll. Return a function that takes
 ---function args and a callback function
@@ -23,8 +23,8 @@ local wrap = function(async_fn)
         local exec
         exec = function()
             local res = thread(unpack(args))
-            if res == M.PENDING then
-                vim.schedule(exec)
+            if res == PENDING then
+                vim.defer_fn(exec, 10)
             else
                 cb(res)
             end
@@ -33,8 +33,11 @@ local wrap = function(async_fn)
     end
 end
 
----@type fun(database_path: string, workspace_path: string, callback: fun(success: boolean))
+---@type fun(database_path: string, workspace_path: string, do_index: boolean, callback: fun(success: boolean))
 M.init = wrap(query.init)
+
+---@type fun(path: string, callback: fun(success: boolean))
+M.index = wrap(query.index)
 
 ---@class CategoryQueryResponse
 ---@field path string
@@ -43,12 +46,12 @@ M.init = wrap(query.init)
 ---@field created string | nil
 ---@field updated string | nil
 
+---Query for all documents that have all the categories listed
 ---@type fun(categories: string[], callback: fun(res: CategoryQueryResponse[]))
-M.query_category = wrap(query.query_category)
+M.category_query = wrap(query.category_query)
 
----@type fun(name: string, callback: fun(res: string))
-M.greet = wrap(query.greet)
-
-M.test_callbacks = wrap(query.greet)
+---Return a list of all the categories
+---@type fun(callback: fun(res: string[]))
+M.all_categories = wrap(query.all_categories)
 
 return M

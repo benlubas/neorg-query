@@ -3,6 +3,7 @@
 neorg-query.log
 # test database files
 *.sql
+*.sqlite
 
 # Compiled Lua sources
 luac.out

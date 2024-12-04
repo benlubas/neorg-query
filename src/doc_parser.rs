@@ -1,4 +1,5 @@
 use itertools::Itertools;
+use log::{info, warn};
 use rust_norg::metadata::{parse_metadata, NorgMeta};
 use rust_norg::NorgAST;
 use rust_norg::{parse_tree, ParagraphSegment, ParagraphSegmentToken};
@@ -162,6 +163,8 @@ impl ParsedDocument {
                             doc.categories = geta("categories");
                             doc.authors = geta("authors");
                             break;
+                        } else {
+                            warn!("Failed to parse metadata for: {file_path}")
                         }
                     }
                     _ => {}

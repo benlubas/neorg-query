@@ -51,6 +51,8 @@
               stylua
               nil
               lua5_1
+              rlwrap
+              sqlite
             ]
             ++ (pkgs.lib.optionals pkgs.stdenv.isDarwin [ libiconv-darwin ]);
         };

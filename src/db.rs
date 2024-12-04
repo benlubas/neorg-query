@@ -1,10 +1,10 @@
 use std::path::Path;
 
 use anyhow::bail;
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, NaiveDateTime, Utc};
 use itertools::Itertools;
 use libsql::{params, Builder, Connection, OpenFlags, Rows};
-use log::info;
+use log::{error, info, trace};
 
 use crate::doc_parser::ParsedDocument;
 
@@ -27,7 +27,6 @@ impl DatabaseConnection {
         let conn = db.connect()?;
         let read_conn = read_db.connect()?;
 
-        // should we parameterize on workspace? One table per workspace?
         conn.execute(
             r#"CREATE TABLE IF NOT EXISTS docs
             (id INTEGER PRIMARY KEY,
@@ -36,7 +35,19 @@ impl DatabaseConnection {
             description TEXT,
             authors TEXT,
             created DATETIME,
-            updated DATETIME)"#,
+            updated DATETIME,
+            indexed DATETIME DEFAULT CURRENT_TIMESTAMP)"#,
+            (),
+        )
+        .await?;
+
+        conn.execute(
+            r#"CREATE TRIGGER IF NOT EXISTS on_update
+            AFTER UPDATE ON docs
+            FOR EACH ROW
+            BEGIN
+            UPDATE docs SET indexed = CURRENT_TIMESTAMP WHERE id = old.id;
+            END"#,
             (),
         )
         .await?;
@@ -94,20 +105,25 @@ impl DatabaseConnection {
         }
     }
 
-    /// Get the `edited` date that we've stored for the file, parse it into a DateTime
-    pub async fn get_edited_date(&self, path: &str) -> anyhow::Result<DateTime<Utc>> {
+    /// Get the `updated` date that we've stored for the file, parse it into a DateTime
+    pub async fn get_updated_date(&self, path: &str) -> anyhow::Result<DateTime<Utc>> {
         let mut rows = self
             .conn
-            .query("SELECT updated FROM docs WHERE path=?1", params![path])
+            .query("SELECT indexed FROM docs WHERE path=?1", params![path])
             .await?;
 
-        if let Ok(Some(row)) = rows.next().await {
-            if let Ok(date) = row.get_str(0) {
-                return Ok(date.parse::<DateTime<Utc>>()?);
-            }
+        match rows.next().await {
+            Ok(Some(row)) => match row.get_str(0) {
+                Ok(date) => {
+                    return Ok(NaiveDateTime::parse_from_str(date, "%Y-%m-%d %H:%M:%S")?.and_utc())
+                }
+                Err(e) => error!("Failed to get updated as string: {e:?}"),
+            },
+            Ok(None) => trace!("No rows (None) from query"),
+            Err(e) => error!("Error from query: {e:?}"),
         }
 
-        bail!("No created at entry for this path");
+        bail!("No `updated` entry for this path");
     }
 
     /// Execute a query in read only mode, return the result

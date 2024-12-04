@@ -1,10 +1,13 @@
 @document.meta
-title: README
-description: 
+title: Neorg Query
+description: A database for your notes with an eventual query language
 authors: benlubas
-categories: 
+categories: [
+    projects
+    readme
+]
 created: 2024-11-27T15:53:11-0500
-updated: 2024-11-30T09:18:28-0500
+updated: 2024-12-04T22:25:03-0500
 version: 1.1.1
 @end
 
@@ -42,7 +45,7 @@ version: 1.1.1
     anything weird. but...
 
     *Does git update the changed time of a file if you switch branches for example?*
-    surely not
+    it does, so I had to update and add a field, we're good now though.
 
 *** ( ) mlua bindings
     - (x) new version of mlua
@@ -51,31 +54,11 @@ version: 1.1.1
           I have no clue how this will work
 
 **** how do we async properly?
-     Currently the indexing is blocking nvim, even though it is async. I think this
-     is b/c we're polling it over and over again and waiting for the response is just
-     taking too much time from the event loop.
+     vim.schedule to poll is too slow. if we poll a task it's pretty good, but it's
+     still slow enough that it's noticeable when opening a new buffer mostly. I think
+     that I will switch from schedule to deferfn or a uv timer.
 
-     I really am not familiar with how this stuff works, so I'm not sure how to best
-     fix it. Potentially spawning a thread to work on could fix the issue.
-
-     Note that sleeping does not block neovim even though we still constantly poll
-     that one. Which suggests that the working function is not yielding fast enough
-     to not be blocking.
-
-***** Callbacks
-      I also wonder, b/c we're stuck using callbacks anyway, would we be able to just
-      pass a callback directly to the function and then call it from a separate thread
-      in rust? Is that doable? This would remove the need for polling all together,
-      and we could just act in the callback.
-
-      *this does not work*. Send is not available in module mode, and you need send
-      to be able to use the `Lua` object or a `LuaFunction` in the spawned task. so there
-      is no way to call that function when the work is done..
-
-      This does make me think though. Is it even necessary to notify that the
-      indexing process is finished?
-
-*** ( ) Index when neovim starts up
+*** (x) Index when neovim starts up
 *** ( ) Index a single file when it's changed (neovim can watch with autocommands)
     Watching with autocommands is probably good enough. We could have a file watcher
     in rust, but I think that's probably overkill. I don't anticipate that people

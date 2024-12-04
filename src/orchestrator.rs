@@ -10,12 +10,12 @@ use std::convert::identity;
 use std::{path::Path, sync::mpsc::channel};
 
 /// Parse all the files in the workspace, skipping files that were last edited within a few ms of
-/// the edited time we have for them.
+/// the edited time we have for them. Streams reading, parsing, and inserting steps together
 pub async fn index_workspace(
-    workspace_path: &Path,
+    path: &Path,
     conn: &DatabaseConnection,
 ) -> Result<()> {
-    info!("Indexing {workspace_path:?}\n...");
+    info!("Indexing {path:?}\n...");
 
     let mut types = TypesBuilder::new();
     types.add("norg", "*.norg")?;
@@ -45,7 +45,7 @@ pub async fn index_workspace(
     //     WalkState::Continue
     // }));
     info!("Walking..");
-    for entry in WalkBuilder::new(workspace_path)
+    for entry in WalkBuilder::new(path)
         .types(types)
         .build()
         .flatten()
@@ -55,7 +55,7 @@ pub async fn index_workspace(
             continue;
         }
         let path = path.to_string_lossy();
-        let stored_edit_time = conn.get_edited_date(&path).await;
+        let stored_edit_time = conn.get_updated_date(&path).await;
 
         if stored_edit_time.is_ok_and(|t| !should_parse(&entry, t).is_ok_and(identity)) {
             info!("Skipping {path:?}");
@@ -77,11 +77,26 @@ pub async fn index_workspace(
     Ok(())
 }
 
-fn should_parse(entry: &DirEntry, edited_date: DateTime<Utc>) -> anyhow::Result<bool> {
+// index a single file
+pub async fn index_file(
+    path: &Path,
+    conn: &DatabaseConnection,
+) -> Result<()> {
+    assert!(path.is_file());
+
+    if let Ok(doc) = ParsedDocument::new(path.to_str().unwrap()) {
+        conn.insert_or_update_doc(&doc).await?;
+    }
+
+    Ok(())
+}
+
+fn should_parse(entry: &DirEntry, updated: DateTime<Utc>) -> anyhow::Result<bool> {
     let modified: i64 = entry
         .metadata()?
         .modified()?
         .duration_since(std::time::UNIX_EPOCH)?
         .as_secs() as i64;
-    Ok((modified - edited_date.timestamp()).abs() > 1)
+
+    Ok(modified - updated.timestamp() > 3)
 }
