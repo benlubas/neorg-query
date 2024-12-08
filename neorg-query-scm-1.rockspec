@@ -31,14 +31,15 @@ build_dependencies = {
 
 build = {
     type = "rust-mlua",
+
     modules = {
         ["libneorg_query"] = "neorg_query",
     },
+
     install = {
         lua = {
             ["neorg_query.api"] = "lua/neorg_query/api.lua",
             ["neorg.modules.external.query.module"] = "lua/neorg/modules/external/query/module.lua",
         },
     },
-    copy_directories = $copy_directories,
 }
