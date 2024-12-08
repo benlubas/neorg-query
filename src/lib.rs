@@ -22,12 +22,11 @@ static TOKIO: Lazy<runtime::Runtime> = Lazy::new(|| {
         .expect("cannot start tokio runtime")
 });
 
-/// - Initialize the Database connection
-/// - Perform the initial workspace index
-/// - Return nothing, right?
+/// Initialize the Database connection, optionally perform the initial workspace index
+/// Returns true on success, false on failure
 async fn init(
     _: Lua,
-    (database_path, workspace_path, index): (String, String, bool),
+    (database_path, workspace_path, do_index): (String, String, bool),
 ) -> LuaResult<bool> {
     let handle = TOKIO.handle();
 
@@ -39,7 +38,7 @@ async fn init(
                 .unwrap();
 
             let _ = DB.set(db);
-            if index {
+            if do_index {
                 let db = DB.get().unwrap();
                 orchestrator::index_workspace(ws_path, db).await
             } else {
