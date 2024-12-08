@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.1](https://github.com/benlubas/neorg-query/compare/v1.0.0...v1.0.1) (2024-12-08)
+
+
+### Bug Fixes
+
+* rockspec ([9652da7](https://github.com/benlubas/neorg-query/commit/9652da7f38148152f211dbf975f95065cb46ce64))
+
 ## 1.0.0 (2024-12-08)
 
 
