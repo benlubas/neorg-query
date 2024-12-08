@@ -44,7 +44,7 @@ build = {
 
     install = {
         lua = {
-            ["neorg_query.init"] = "lua/neorg_query/init.lua",
+            ["neorg_query.api"] = "lua/neorg_query/api.lua",
             ["neorg.modules.external.query.module"] = "lua/neorg/modules/external/query/module.lua",
         },
     },

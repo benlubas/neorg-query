@@ -27,6 +27,5 @@ jobs:
           version: ${{ env.LUAROCKS_VERSION }}
           template: "./.github/workflows/template.rockspec"
           dependencies: |
-            neorg >= 8
-            telescope.nvim
+            neorg >= 9
             lua ~> 5.1

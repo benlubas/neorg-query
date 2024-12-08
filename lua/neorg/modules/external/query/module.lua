@@ -29,7 +29,7 @@ module.config.public = {
 }
 
 module.setup = function()
-    local ok, res = pcall(require, "libneorg_query.api")
+    local ok, res = pcall(require, "neorg_query.api")
     if ok then
         query = res
     else
