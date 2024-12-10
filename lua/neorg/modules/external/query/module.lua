@@ -86,7 +86,7 @@ module.load = function()
             if success then
                 vim.notify("[Neorg-Query] Done Indexing!")
             else
-                vim.notify("[Neorg-Query] Error while indexing", vim.log.levels.ERROR)
+                vim.notify("[Neorg-Query] Error on initial workspace index", vim.log.levels.ERROR)
             end
         end
     )
@@ -147,7 +147,7 @@ module.private["query.index"] = function(_)
             if success then
                 vim.notify("[Neorg-Query] Done Indexing!")
             else
-                vim.notify("[Neorg-Query] Error while indexing", vim.log.levels.ERROR)
+                vim.notify("[Neorg-Query] Error while indexing workspace", vim.log.levels.ERROR)
             end
         end
     )

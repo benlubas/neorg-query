@@ -7,6 +7,7 @@ use std::{fs::File, path::Path, sync::OnceLock};
 use anyhow::anyhow;
 use db::{util::gets_checked, DatabaseConnection};
 use itertools::Itertools;
+use log::info;
 use mlua::prelude::*;
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
@@ -35,11 +36,11 @@ async fn init(
             let ws_path = Path::new(&workspace_path);
             let db = DatabaseConnection::new(Path::new(&database_path))
                 .await
-                .unwrap();
+                .expect("failed to create DB connection");
 
             let _ = DB.set(db);
             if do_index {
-                let db = DB.get().unwrap();
+                let db = DB.get().expect("failed to get DB in init (should not be possible)");
                 orchestrator::index_workspace(ws_path, db).await
             } else {
                 Ok(())
@@ -52,7 +53,7 @@ async fn init(
 
 async fn index(_: Lua, path: String) -> LuaResult<bool> {
     let handle = TOKIO.handle();
-    let db = DB.get().unwrap();
+    let db = DB.get().expect("failed to get DB in index");
 
     let p = Path::new(&path);
     if !p.exists() {
@@ -93,7 +94,7 @@ async fn category_query(lua: Lua, categories: Vec<String>) -> LuaResult<Vec<LuaV
             return Err(anyhow!("Need at least one category").into_lua_err());
         }
 
-        let db = DB.get().unwrap();
+        let db = DB.get().expect("failed to get DB in category query");
         let q = "SELECT path, title, description, created, updated FROM docs d JOIN categories c ON d.id = c.file_id WHERE "
             .to_string()
             + &(0..categories.len())
@@ -104,7 +105,7 @@ async fn category_query(lua: Lua, categories: Vec<String>) -> LuaResult<Vec<LuaV
         let mut res = vec![];
         while let Ok(Some(row)) = rows.next().await {
             res.push(CategoryQueryResponse {
-                path: gets_checked(&row, 0).unwrap(),
+                path: gets_checked(&row, 0).expect("file didn't have a path"),
                 title: gets_checked(&row, 1),
                 description: gets_checked(&row, 2),
                 created: gets_checked(&row, 3),
@@ -116,8 +117,8 @@ async fn category_query(lua: Lua, categories: Vec<String>) -> LuaResult<Vec<LuaV
     }).await;
 
     Ok(res
-        .unwrap()
-        .unwrap()
+        .expect("cat query task failed")
+        .expect("cat query task returned Err")
         .iter()
         .filter_map(|x| lua.to_value(&x).ok())
         .collect())
@@ -128,7 +129,7 @@ async fn all_categories(_lua: Lua, _: ()) -> LuaResult<Vec<String>> {
 
     let res = handle
         .spawn(async move {
-            let db = DB.get().unwrap();
+            let db = DB.get().expect("failed to get DB in all_categories");
             let q = "SELECT DISTINCT name FROM categories";
 
             let mut rows = db.user_query(q, ()).await?;
@@ -142,7 +143,7 @@ async fn all_categories(_lua: Lua, _: ()) -> LuaResult<Vec<String>> {
         })
         .await;
 
-    Ok(res.unwrap().unwrap())
+    Ok(res.expect("all cat task failed").expect("all cat task returned Err"))
 }
 
 // async fn greet(_lua: Lua, name: String) -> LuaResult<String> {
@@ -157,9 +158,9 @@ fn libneorg_query(lua: &Lua) -> LuaResult<LuaTable> {
     CombinedLogger::init(vec![WriteLogger::new(
         log::LevelFilter::Info,
         simplelog::Config::default(),
-        File::create("/tmp/neorg-query.log").unwrap(),
+        File::create("/tmp/neorg-query.log").expect("failed to create log file"),
     )])
-    .unwrap();
+    .expect("failed to crate logger");
     log_panics::init();
 
     let exports = lua.create_table()?;
