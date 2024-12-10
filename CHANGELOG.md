@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.2](https://github.com/benlubas/neorg-query/compare/v1.0.1...v1.0.2) (2024-12-10)
+
+
+### Bug Fixes
+
+* expect with different messages for debugging ([7a642ea](https://github.com/benlubas/neorg-query/commit/7a642ea1fe4a5e0c08cfa35f381f0bbe5f225198))
+
 ## [1.0.1](https://github.com/benlubas/neorg-query/compare/v1.0.0...v1.0.1) (2024-12-08)
 
 
