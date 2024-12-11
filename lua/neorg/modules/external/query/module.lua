@@ -33,7 +33,7 @@ module.setup = function()
     if ok then
         query = res
     else
-        log.error("[Neorg Search] Failed to load `libneorg_query`.\n" .. res)
+        log.error("[Neorg Query] Failed to load `libneorg_query`.\n" .. res)
     end
     return {
         success = ok,

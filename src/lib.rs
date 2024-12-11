@@ -40,7 +40,9 @@ async fn init(
 
             let _ = DB.set(db);
             if do_index {
-                let db = DB.get().expect("failed to get DB in init (should not be possible)");
+                let db = DB
+                    .get()
+                    .expect("failed to get DB in init (should not be possible)");
                 orchestrator::index_workspace(ws_path, db).await
             } else {
                 Ok(())
@@ -86,35 +88,44 @@ struct CategoryQueryResponse {
 async fn category_query(lua: Lua, categories: Vec<String>) -> LuaResult<Vec<LuaValue>> {
     let handle = TOKIO.handle();
 
-    let res = handle.spawn(async move {
-        if categories.is_empty() {
-            // I feel like this will be slower, even though it's easier to write. I'm annoyed that just
-            // bail! doesn't automatically type convert
-            // (|| bail!("Need at least one category"))()?;
-            return Err(anyhow!("Need at least one category").into_lua_err());
-        }
+    let res = handle
+        .spawn(async move {
+            if categories.is_empty() {
+                // I feel like this will be slower, even though it's easier to write. I'm annoyed that just
+                // bail! doesn't automatically type convert
+                // (|| bail!("Need at least one category"))()?;
+                return Err(anyhow!("Need at least one category").into_lua_err());
+            }
 
-        let db = DB.get().expect("failed to get DB in category query");
-        let q = "SELECT path, title, description, created, updated FROM docs d JOIN categories c ON d.id = c.file_id WHERE "
-            .to_string()
-            + &(0..categories.len())
-                .map(|i| format!("c.name = ?{}", i + 1))
-                .join(" AND ");
+            let db = DB.get().expect("failed to get DB in category query");
+            let q = "SELECT path, title, description, created, updated FROM docs d ".to_string()
+                + &(0..categories.len())
+                    .map(|i| {
+                        format!(
+                            "JOIN categories c{0} ON d.id = c{0}.file_id AND c{0}.name = ?{0}",
+                            i + 1
+                        )
+                    })
+                    .join(" ")
+                + " GROUP BY d.id";
 
-        let mut rows = db.user_query(&q, categories).await?;
-        let mut res = vec![];
-        while let Ok(Some(row)) = rows.next().await {
-            res.push(CategoryQueryResponse {
-                path: gets_checked(&row, 0).expect("file didn't have a path"),
-                title: gets_checked(&row, 1),
-                description: gets_checked(&row, 2),
-                created: gets_checked(&row, 3),
-                updated: gets_checked(&row, 4),
-            })
-        }
+            info!("{q}");
 
-        Ok(res)
-    }).await;
+            let mut rows = db.user_query(&q, categories).await?;
+            let mut res = vec![];
+            while let Ok(Some(row)) = rows.next().await {
+                res.push(CategoryQueryResponse {
+                    path: gets_checked(&row, 0).expect("file didn't have a path"),
+                    title: gets_checked(&row, 1),
+                    description: gets_checked(&row, 2),
+                    created: gets_checked(&row, 3),
+                    updated: gets_checked(&row, 4),
+                })
+            }
+
+            Ok(res)
+        })
+        .await;
 
     Ok(res
         .expect("cat query task failed")
@@ -143,7 +154,9 @@ async fn all_categories(_lua: Lua, _: ()) -> LuaResult<Vec<String>> {
         })
         .await;
 
-    Ok(res.expect("all cat task failed").expect("all cat task returned Err"))
+    Ok(res
+        .expect("all cat task failed")
+        .expect("all cat task returned Err"))
 }
 
 // async fn greet(_lua: Lua, name: String) -> LuaResult<String> {

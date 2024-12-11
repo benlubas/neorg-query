@@ -50,6 +50,14 @@ polling. So it doesn't really matter how poorly we poll the coroutine, we're jus
 and eventually it will be done. We could sleep for 10 seconds and poll it once, and it would be
 finished.
 
+As a result, we poll once with vim.schedule for quick tasks, and then toll every 10ms. This results
+is a smooth experience in neovim. And as long as we're not chaining a ton of these calls together,
+the 10ms polling time will never be noticeable.
+
+Every wrapped function is takes a callback as it's last argument. The callback is called with the
+result from rust.
+
 ## Neorg Module
 
-WIP, need to push debugging fix
+The neorg module handles all of the user facing code. Anything that the user interacts with will go
+here. This is also where auto commands and configuration are handled.

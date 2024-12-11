@@ -51,4 +51,4 @@ configuration needed in this plugin.
 
 ## Developers
 
-Please checkout [the roadmap](./ROADMAP.norg) and [CONTRIBUTING.md](./)
+Please checkout [the roadmap](./ROADMAP.norg) and [CONTRIBUTING.md](./CONTRIBUTING.md)
