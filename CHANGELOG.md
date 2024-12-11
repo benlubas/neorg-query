@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.3](https://github.com/benlubas/neorg-query/compare/v1.0.2...v1.0.3) (2024-12-11)
+
+
+### Bug Fixes
+
+* cateogry query ([5f62f01](https://github.com/benlubas/neorg-query/commit/5f62f01610072fdda2d2c4c61488db63e7556177))
+
 ## [1.0.2](https://github.com/benlubas/neorg-query/compare/v1.0.1...v1.0.2) (2024-12-10)
 
 
