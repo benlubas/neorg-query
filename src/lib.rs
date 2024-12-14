@@ -2,11 +2,12 @@ mod db;
 mod doc_parser;
 mod orchestrator;
 
-use std::{fs::File, path::Path, sync::OnceLock};
+use std::{collections::HashMap, convert::identity, fs::File, path::Path, sync::OnceLock};
 
 use anyhow::anyhow;
 use db::{util::gets_checked, DatabaseConnection};
 use itertools::Itertools;
+use libsql::Row;
 use log::info;
 use mlua::prelude::*;
 use once_cell::sync::Lazy;
@@ -85,7 +86,10 @@ struct CategoryQueryResponse {
     updated: Option<String>,
 }
 
-async fn category_query(lua: Lua, categories: Vec<String>) -> LuaResult<Vec<LuaValue>> {
+async fn category_query(
+    lua: Lua,
+    (categories, or): (Vec<String>, Option<bool>),
+) -> LuaResult<Vec<LuaValue>> {
     let handle = TOKIO.handle();
 
     let res = handle
@@ -99,17 +103,23 @@ async fn category_query(lua: Lua, categories: Vec<String>) -> LuaResult<Vec<LuaV
 
             let db = DB.get().expect("failed to get DB in category query");
             let q = "SELECT path, title, description, created, updated FROM docs d ".to_string()
-                + &(0..categories.len())
-                    .map(|i| {
-                        format!(
-                            "JOIN categories c{0} ON d.id = c{0}.file_id AND c{0}.name = ?{0}",
-                            i + 1
-                        )
-                    })
-                    .join(" ")
-                + " GROUP BY d.id";
-
-            info!("{q}");
+                + &if or.is_some_and(identity) {
+                    "JOIN categories c ON d.id = c.file_id AND (".to_string()
+                        + &(0..categories.len())
+                            .map(|i| format!("c.name = ?{}", i + 1))
+                            .join(" OR ")
+                        + ") GROUP BY d.id"
+                } else {
+                    (0..categories.len())
+                        .map(|i| {
+                            format!(
+                                "JOIN categories c{0} ON d.id = c{0}.file_id AND c{0}.name = ?{0}",
+                                i + 1
+                            )
+                        })
+                        .join(" ")
+                        + " GROUP BY d.id"
+                };
 
             let mut rows = db.user_query(&q, categories).await?;
             let mut res = vec![];
@@ -159,6 +169,52 @@ async fn all_categories(_lua: Lua, _: ()) -> LuaResult<Vec<String>> {
         .expect("all cat task returned Err"))
 }
 
+// I hate that I have to do this. libsql::de doesn't deserialize to "any", only to specific
+// structs.
+// Also, when you try to construct a LuaValue yourself, passing it back to rust results in a list
+// of userdata values
+fn row2value(row: &Row) -> anyhow::Result<HashMap<String, serde_json::Value>> {
+    let mut table: HashMap<String, serde_json::Value> = HashMap::new();
+    info!("{row:?}");
+    for i in 0..row.column_count() {
+        let name = row.column_name(i);
+        let t = row.column_type(i)?;
+        let value = match t {
+            libsql::ValueType::Integer => {
+                serde_json::to_value(row.get_value(i)?.as_integer().unwrap())?
+            }
+            libsql::ValueType::Real => serde_json::to_value(row.get_value(i)?.as_real().unwrap())?,
+            libsql::ValueType::Text => serde_json::to_value(row.get_value(i)?.as_text().unwrap())?,
+            libsql::ValueType::Blob => serde_json::to_value(row.get_value(i)?.as_blob().unwrap())?,
+            libsql::ValueType::Null => serde_json::Value::Null,
+        };
+        table.insert(name.unwrap_or(&i.to_string()).to_string(), value);
+    }
+
+    info!("{table:?}");
+    Ok(table)
+}
+
+async fn user_query(lua: Lua, (query, params): (String, Vec<String>)) -> LuaResult<LuaValue> {
+    let handle = TOKIO.handle();
+    let res = handle
+        .spawn(async move {
+            let db = DB.get().expect("fail to get DB in user_query");
+            let mut rows = db.user_query(&query, params).await?;
+            let mut values = vec![];
+            while let Ok(Some(row)) = rows.next().await {
+                values.push(row2value(&row)?);
+            }
+            Ok::<Vec<HashMap<String, serde_json::Value>>, anyhow::Error>(values)
+        })
+        .await;
+
+    let res = res.expect("user_query task failed").expect("something");
+    let tab = lua.to_value(&res)?;
+
+    Ok(tab)
+}
+
 // async fn greet(_lua: Lua, name: String) -> LuaResult<String> {
 //     let _guard = TOKIO.enter();
 //
@@ -181,6 +237,7 @@ fn libneorg_query(lua: &Lua) -> LuaResult<LuaTable> {
     exports.set("index", lua.create_async_function(index)?)?;
     exports.set("category_query", lua.create_async_function(category_query)?)?;
     exports.set("all_categories", lua.create_async_function(all_categories)?)?;
+    exports.set("user_query", lua.create_async_function(user_query)?)?;
 
     exports.set(
         "PENDING",

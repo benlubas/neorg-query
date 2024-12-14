@@ -1,5 +1,5 @@
 use itertools::Itertools;
-use log::{info, warn};
+use log::warn;
 use rust_norg::metadata::{parse_metadata, NorgMeta};
 use rust_norg::NorgAST;
 use rust_norg::{parse_tree, ParagraphSegment, ParagraphSegmentToken};

@@ -54,4 +54,9 @@ M.category_query = wrap(query.category_query)
 ---@type fun(callback: fun(res: string[]))
 M.all_categories = wrap(query.all_categories)
 
+---Run a SQL query against a read only copy of the database. Result is a list of rows, keyed by
+---column. Dates are returned in their string representation.
+---@type fun(query: string, params: string[], callback: fun(res: table[]))
+M.user_query = wrap(query.user_query)
+
 return M
