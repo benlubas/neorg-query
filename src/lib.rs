@@ -181,14 +181,16 @@ fn row2value(row: &Row) -> anyhow::Result<HashMap<String, serde_json::Value>> {
         let t = row.column_type(i)?;
         let value = match t {
             libsql::ValueType::Integer => {
-                serde_json::to_value(row.get_value(i)?.as_integer().unwrap())?
+                Some(serde_json::to_value(row.get_value(i)?.as_integer().unwrap())?)
             }
-            libsql::ValueType::Real => serde_json::to_value(row.get_value(i)?.as_real().unwrap())?,
-            libsql::ValueType::Text => serde_json::to_value(row.get_value(i)?.as_text().unwrap())?,
-            libsql::ValueType::Blob => serde_json::to_value(row.get_value(i)?.as_blob().unwrap())?,
-            libsql::ValueType::Null => serde_json::Value::Null,
+            libsql::ValueType::Real => Some(serde_json::to_value(row.get_value(i)?.as_real().unwrap())?),
+            libsql::ValueType::Text => Some(serde_json::to_value(row.get_value(i)?.as_text().unwrap())?),
+            libsql::ValueType::Blob => Some(serde_json::to_value(row.get_value(i)?.as_blob().unwrap())?),
+            libsql::ValueType::Null => None,
         };
-        table.insert(name.unwrap_or(&i.to_string()).to_string(), value);
+        if let Some(value) = value {
+            table.insert(name.unwrap_or(&i.to_string()).to_string(), value);
+        }
     }
 
     info!("{table:?}");

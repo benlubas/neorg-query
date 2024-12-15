@@ -35,24 +35,19 @@ pub struct ParsedDocument {
 }
 
 impl ParsedDocument {
-    pub fn doc_params(
-        &self,
-    ) -> (
-        String,
-        Option<String>,
-        Option<String>,
-        String,
-        Option<String>,
-        Option<String>,
-    ) {
-        (
-            self.path.clone(),
+    pub fn doc_params(&self) -> Vec<Option<String>> {
+        vec![
+            Some(self.path.clone()),
             self.title.clone(),
             self.description.clone(),
-            self.authors.join(""),
+            if self.authors.is_empty() {
+                None
+            } else {
+                Some(self.authors.join(""))
+            },
             self.created_date.clone(),
             self.updated_date.clone(),
-        )
+        ]
     }
 }
 
