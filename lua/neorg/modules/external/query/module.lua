@@ -319,13 +319,17 @@ end
 
 ---@param event neorg.event
 module.private["query.clear"] = function(event)
-    local tag = current_tag(event.cursor_position[1], event.buffer)
+    local row = event.cursor_position[1]
+    local tag = current_tag(row, event.buffer)
     if not tag then
         return
     end
 
     if tag.content_start and tag["end"] then
         vim.api.nvim_buf_set_lines(event.buffer, tag.content_start - 1, tag["end"], false, {})
+        if row > tag.content_start then
+            vim.api.nvim_win_set_cursor(event.window, { tag.content_start - 1, event.cursor_position[2] })
+        end
     end
 end
 
