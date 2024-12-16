@@ -123,6 +123,33 @@ But **not** this:
 ___
 ```
 
+#### Tables
+
+There are two tables right now:
+
+**`docs`**: contains information about documents and their metadata
+
+| index | name        | type          | notnull | default           | pk  |
+| ----- | ----------- | ------------- | ------- | ----------------- | --- |
+| 0     | id          | INTEGER       | 0       |                   | 1   |
+| 1     | path        | VARCHAR(1024) | 1       |                   | 0   |
+| 2     | title       | TEXT          | 0       |                   | 0   |
+| 3     | description | TEXT          | 0       |                   | 0   |
+| 4     | authors     | TEXT          | 0       |                   | 0   |
+| 5     | created     | DATETIME      | 0       |                   | 0   |
+| 6     | updated     | DATETIME      | 0       |                   | 0   |
+| 7     | indexed     | DATETIME      | 0       | CURRENT_TIMESTAMP | 0   |
+
+`indexed` is used internally to determine if a file needs to be re-indexed when you open neorg.
+
+**`categories`**
+
+| index | name    | type         | notnull | default | pk  |
+| ----- | ------- | ------------ | ------- | ------- | --- |
+| 0     | id      | INTEGER      | 0       |         | 1   |
+| 1     | file_id | INTEGER      | 0       |         | 0   |
+| 2     | name    | VARCHAR(255) | 1       |         | 0   |
+
 ### `#format`
 
 Very basic format. Include the value of a column with `${column_name}`. If you select a col with `AS
