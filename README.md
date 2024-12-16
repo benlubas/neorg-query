@@ -10,6 +10,8 @@ This project has a few names. Neorq is fun, but too easy to typo, and bad for se
 > This is not [Neorg macros](https://vhyrro.github.io/posts/neorg-macros/), this is a third party
 > module. Neorg's macro system doesn't exist yet
 
+https://github.com/user-attachments/assets/5063288b-f251-4948-9cd3-114b9c59c051
+
 A database and query interface for your notes.
 
 ---
