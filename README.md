@@ -6,7 +6,7 @@ This project has a few names. Neorq is fun, but too easy to typo, and bad for se
 > Massive WIP. If you're going to use this, treat any update as a breaking change until this warning
 > is gone.
 
-> [!INFO]
+> [!NOTE]
 > This is not [Neorg macros](https://vhyrro.github.io/posts/neorg-macros/), this is a third party
 > module. Neorg's macro system doesn't exist yet
 
