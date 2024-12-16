@@ -39,6 +39,7 @@ local indent
 ---@field sql string
 ---@field format string
 
+---@class neorq.config
 module.config.public = {
     --- Index the workspace on launch
     index_on_launch = true,
@@ -87,7 +88,7 @@ module.load = function()
                 clear = {
                     args = 0,
                     name = "query.clear",
-                }
+                },
             },
         },
     })
@@ -124,24 +125,26 @@ module.load = function()
     )
 
     -- Setup autocommands
-    module.private.augroup = vim.api.nvim_create_augroup("neorg-query", { clear = true })
-    vim.api.nvim_create_autocmd("BufWrite", {
-        pattern = "*.norg",
-        group = module.private.augroup,
-        callback = function(e)
-            if not dirman.in_workspace(Path(e.file)) then
-                return
-            end
-
-            neorq_rs.index(e.file, function(success)
-                if success then
-                    log.trace("Indexed file:" .. e.file)
-                else
-                    log.error("Failed to index file " .. e.file)
+    if module.config.public.update_on_change then
+        module.private.augroup = vim.api.nvim_create_augroup("neorg-query", { clear = true })
+        vim.api.nvim_create_autocmd("BufWrite", {
+            pattern = "*.norg",
+            group = module.private.augroup,
+            callback = function(e)
+                if not dirman.in_workspace(Path(e.file)) then
+                    return
                 end
-            end)
-        end,
-    })
+
+                neorq_rs.index(e.file, function(success)
+                    if success then
+                        log.trace("Indexed file:" .. e.file)
+                    else
+                        log.error("Failed to index file " .. e.file)
+                    end
+                end)
+            end,
+        })
+    end
 end
 
 ---@class external.query

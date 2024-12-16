@@ -60,13 +60,16 @@ async fn index(_: Lua, path: String) -> LuaResult<bool> {
 
     let p = Path::new(&path);
     if !p.exists() {
+        info!("doesn't exist, {path:?}");
         return Err(anyhow!("Path doesn't exist").into_lua_err());
     }
 
+    info!("hi");
     let res = handle
         .spawn(async move {
             let path = Path::new(&path);
             if path.is_file() {
+                info!("indexing file {path:?}");
                 orchestrator::index_file(path, db).await
             } else {
                 orchestrator::index_workspace(path, db).await
@@ -74,7 +77,8 @@ async fn index(_: Lua, path: String) -> LuaResult<bool> {
         })
         .await;
 
-    Ok(res.is_ok())
+    info!("{res:?}");
+    Ok(res.is_ok_and(|e| e.is_ok()))
 }
 
 #[derive(Debug, Serialize, Deserialize)]

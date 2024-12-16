@@ -7,119 +7,49 @@ categories: [
     readme
 ]
 created: 2024-11-27T15:53:11-0500
-updated: 2024-12-08T08:49:39-0500
+updated: 2024-12-15T20:48:56-0500
 version: 1.1.1
 @end
 
 * neorg-query
 
-  This is a toy/POC concept for a plugin that allows dynamic query running to populate sections of
-  your notes by running a SQL query.
-
   (Planned) Features:
   - (x) Persistent LibSQL database that tracks file metadata for each file
-  -- we create this
   - (x) Parse files with rust-norg parser
-  - ( ) `@query` tag that populates on `:Neorg query run`
-  - ( ) Update the database on launch
-  -- ( ) store file modified dates probably
-  -- ( ) remove files that are deleted
-  -- ( ) add/parse files that are new
-  - ( ) Watch current workspace and update on file changes. Debounce this.
-  - ( ) Eventual todo item support..
+  - (x) Update the database on launch
+  -- (x) store file modified dates probably
+  -- (x) remove files that are deleted
+  -- (x) add/parse files that are new
+  - (x) Watch current workspace and update on file changes
+  - (x) `#sql` tag that populates on `:Neorg query run`
+  - (x) format strings
+  -- (x) modifiers
+  -- ( ) auto format based on available fields
+  - ( ) Task support
+  -- ( ) `tasks` table
   -- this could noticeably increase the parse time
+  - ( ) improve multi threaded parsing performance
   - ( ) Possible optional plaintext support for vector search and specific paragraph
         retrieval. This would increase the size of the DB by a lot
 
-** TODO:
+** Custom Query Building
+   Eventually, we'd like to create a custom query language that makes it easier to
+   construct queries. I've begun to look pat how obsidian queries and data view
+   queries work, but still definitely want to talk more about this.
 
-*** (x) Ability to parse documents by filename
-*** (x) Ability to create a database and the required tables
-*** (x) Ability to add files to that database
-*** (x) Add categories
-*** (x) Update files without duplicating data
-*** (x) Only re-parse changed files
-    We already store the `changed` metadata for them, I'm pretty sure that's usable
-    to compare with the file system's touched time. We will end up doing some
-    unnecessary work here, specifically if git or other version control does
-    anything weird. but...
+   Instead of a `#sql` tag, these will use `#query`, or even `#task` if we create
+   a simplified query language for tasks.
 
-    *Does git update the changed time of a file if you switch branches for example?*
-    it does, so I had to update and add a field, we're good now though.
+*** Pros and Cons of SQL
+    *Pros:*
+    - Implementation is super simple. We literally just take the raw query from the
+      user, and run it. No syntax parsing, no nothing.
+    - Familiarity, most all devs have used SQL before
 
-*** (x) mlua bindings
-    - (x) new version of mlua
-    - (x) enable async and all that shit
-    - (x) write all the functions that we need. woo. this is going to be interesting,
-          I have no clue how this will work
-
-**** (x) how do we async properly?
-     vim.schedule to poll is too slow. if we poll a task it's pretty good, but it's
-     still slow enough that it's noticeable when opening a new buffer mostly. I think
-     that I will switch from schedule to deferfn or a uv timer.
-
-*** (x) Index when neovim starts up
-*** (x) Index a single file when it's changed (neovim can watch with autocommands)
-    Watching with autocommands is probably good enough. We could have a file watcher
-    in rust, but I think that's probably overkill. I don't anticipate that people
-    will change norg files outside of neovim at the moment.
-*** ( ) Neovim @query interface
-    - ( ) Can we put the DB in safe mode when running queries from neovim.
-    -- Potentially running a drop command from neovim, while entirely the user's
-       fault, would still suck, and should not be possible.
-    -- If not, we could parse the SQL ourselves, and ensure that only `SELECT` commands
-       are able to run
-
-**** ( ) Way to run user queries against the DB
-**** ( ) Format the results in a pleasing way
-**** ( ) Custom format strings that the use specifies?
-     I'm not sure how formatting should work. There's a solid chance that formatting
-     results is the hardest part of this entire project. It's certainly the most
-     subjective.
-
-     - If you select paths, you should get links
-     - if you select anything else, you should get plaintext, probably
-     - if you select more than one thing, what would you get? List? Headers?
-
-***** Formatting examples
-
-      *note:* the goal UI currently is this, where `|@query <sql_query>|` is a ranged
-      tag, and the inside of the tag is populated with the results when the command
-      is run. This means that the results can be /real/ text, saved to the file, and
-      we can also include a tag like `last run: 2024-11-26.12:10` or something to
-      remind the user that this doesn't live update or anything.
-
-      Here are some examples of what I imagine this looking like. There's a few
-      questions that remain, will make sure to mark those.
-
-****** Basic Recently Edited files
-       I'll note that the TS parser is going to fight us here if we want to use real
-       sql syntax for dates and like `table.field` will not work either
-
-       @query SELECT path FROM docs WHERE updated > '2024 11 26'
-       - {:$/eng:}
-       - {:$/index:}
-       - {:$/gtd:}
-       @end
-
-****** Files and Titles
-       when you select path and title, you should get the title as the name of the
-       link. This is all very arbitrary.
-
-       @query SELECT path, title FROM docs WHERE updated > '2024 11 26'
-       - {:$/eng:}[Engineering notes]
-       - {:$/index:}[Something]
-       - {:$/gtd:}[Getting things done organizational system]
-       @end
-
-****** Custom format string
-       This will probably require custom syntax parsing, or at least a little bit of
-       it to find the names, unless the names are included in the result I forget.
-
-       #format `|{$path}[$title] - $created|`
-       @query SELECT path, title, created FROM docs ORDER BY created LIMIT 3
-       - {:$/index:}[Index] - 2023-08-1:....
-       - {:$/index:}[Index] - 2023-08-1:....
-       - {:$/index:}[Index] - 2023-08-1:....
-       @end
+    *Cons:*
+    - overly verbose
+    - sql queries in general have some weird design flaws
+    - joins are annoying to write
+    - `path LIKE '%/folder/%'` is at least 6 too many chars to communicate that I want
+      things in the `folder` folder
 

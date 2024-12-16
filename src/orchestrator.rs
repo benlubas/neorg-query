@@ -85,6 +85,7 @@ pub async fn index_file(
     assert!(path.is_file());
 
     if let Ok(doc) = ParsedDocument::new(path.to_str().unwrap()) {
+        info!("{doc:?}");
         conn.insert_or_update_doc(&doc).await?;
     }
 

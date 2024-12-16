@@ -72,7 +72,7 @@ impl DatabaseConnection {
         let mut rows = self.conn.query(
             "INSERT INTO docs (path, title, description, authors, created, updated)
              VALUES (?1, ?2, ?3, ?4, ?5, ?6)
-             ON CONFLICT(path) DO UPDATE SET title=excluded.title, authors=excluded.authors, updated=excluded.updated
+             ON CONFLICT(path) DO UPDATE SET title=excluded.title, description=excluded.description, authors=excluded.authors, updated=excluded.updated
              RETURNING id",
             doc.doc_params(),
         ).await?;
