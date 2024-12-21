@@ -1,11 +1,9 @@
 --[[
     file: Query-Module
     title: Query for items in your workspace
-    summary: Allows for dynamic queries that can populate lists of TODO items
+    summary: Write queries that dynamically populate with content from your other notes
     internal: false
     ---
-
-TOTALLY NON FUNCTIONAL AT THE MOMENT
 
 --]]
 
@@ -38,6 +36,7 @@ local indent
 ---@field type neorq.type
 ---@field sql string
 ---@field format string
+---@field tasks string
 
 ---@class neorq.config
 module.config.public = {
@@ -219,7 +218,7 @@ module.private.find_sql_tags = function(buf)
             tags["sql"] = tags["sql"]:match("`|(.*)|`")
         end
 
-        if tags["sql"] == "" then
+        if tags["sql"] == "" and not tags["tasks"] then
             return
         end
 
@@ -241,7 +240,9 @@ module.private.find_sql_tags = function(buf)
             tags["end"] = #lines
         end
 
-        tags["format"] = tags["format"]:match("`|(.*)|`")
+        if tags.format then
+            tags["format"] = tags["format"]:match("`|(.*)|`")
+        end
         table.insert(neorq_group, tags)
     end, buf)
 
@@ -250,24 +251,9 @@ end
 
 ---Run the query, and return the formatted result via callback
 ---@param query string
----@param format string
----@param buf number
----@param lnr number
----@param cb fun(res: string[])
-module.private.sql_query = function(query, format, buf, lnr, cb)
-    local line_indent = (" "):rep(indent.indentexpr(buf, lnr) or 0)
-    local ws = dirman.get_current_workspace()[2]
-    neorq_rs.user_query(query, {}, function(res)
-        local lines = {}
-        for _, row in ipairs(res) do
-            local line = line_indent
-                .. format:gsub("${(.-)}", function(name)
-                    return formatter.format_col(ws, name, row)
-                end)
-            table.insert(lines, line)
-        end
-        cb(lines)
-    end)
+---@param cb fun(res: table<string, any>)
+module.private.sql_query = function(query, cb)
+    neorq_rs.user_query(query, {}, cb)
 end
 
 ---find the sql tag that the cursor is in, if it's in one
@@ -292,15 +278,67 @@ module.private["query.run"] = function(event)
         return
     end
 
-    module.private.sql_query(tag.sql, tag.format, event.buffer, tag.start, function(res)
+    local line_indent = (" "):rep(indent.indentexpr(event.buffer, tag.start) or 0)
+    local ws = dirman.get_current_workspace()[2]
+    module.private.sql_query(tag.sql, function(res)
+        local lines = {}
+        if tag.tasks then
+            -- create a tree
+            for ci, child in ipairs(res) do
+                if child.parent_id then
+                    for _pi, parent in ipairs(res) do
+                        if child.parent_id == parent.task_id then
+                            if parent.children then
+                                table.insert(parent.children, ci)
+                            else
+                                parent.children = { ci }
+                            end
+                        end
+                    end
+                end
+            end
+
+            -- render only the top level, and each top level will render it's children
+            for _, task in ipairs(res) do
+                if task.parent_id then
+                    goto continue
+                end
+
+                local function draw(t, i)
+                    local formatted = ("${text} {:${path:$}:#${text}}[]"):gsub("${(.-)}", function(name)
+                        return formatter.format_col(ws, name, t)
+                    end)
+                    local extensions = " " .. formatter.task_extensions(t)
+                    table.insert(lines, line_indent .. ("-"):rep(i) .. extensions .. formatted)
+
+                    if t.children then
+                        for _, child_idx in ipairs(t.children) do
+                            draw(res[child_idx], i + 1)
+                        end
+                    end
+                end
+
+                draw(task, 1)
+
+                ::continue::
+            end
+        else
+            for _, row in ipairs(res) do
+                local line = line_indent
+                    .. tag.format:gsub("${(.-)}", function(name)
+                        return formatter.format_col(ws, name, row)
+                    end)
+                table.insert(lines, line)
+            end
+        end
         vim.schedule(function()
             if tag.content_start then
-                vim.api.nvim_buf_set_lines(event.buffer, tag.content_start, tag["end"] - 1, false, res)
+                vim.api.nvim_buf_set_lines(event.buffer, tag.content_start, tag["end"] - 1, false, lines)
             else
                 local leading_whitespace = (" "):rep(indent.indentexpr(event.buffer, tag.start) or 0)
-                table.insert(res, 1, leading_whitespace .. "___")
-                table.insert(res, leading_whitespace .. "___")
-                vim.api.nvim_buf_set_lines(event.buffer, tag["end"], tag["end"], false, res)
+                table.insert(lines, 1, leading_whitespace .. "___")
+                table.insert(lines, leading_whitespace .. "___")
+                vim.api.nvim_buf_set_lines(event.buffer, tag["end"], tag["end"], false, lines)
             end
         end)
     end)

@@ -7,7 +7,7 @@ categories: [
     readme
 ]
 created: 2024-11-27T15:53:11-0500
-updated: 2024-12-15T20:48:56-0500
+updated: 2025-01-20T20:33:08-0500
 version: 1.1.1
 @end
 
@@ -25,10 +25,27 @@ version: 1.1.1
   - (x) format strings
   -- (x) modifiers
   -- ( ) auto format based on available fields
-  - ( ) Task support
-  -- ( ) `tasks` table
-  -- this could noticeably increase the parse time
+  - (x) Task support
+  -- (x) `tasks` table
+  -- (x) this could noticeably increase the parse time
+  --- it really didn't add much
+  -- ( ) Tweak the way that tasks dates are parsed
+  --- ( ) support `Jan 1 2025` style of dates, there are easy to detect, and they're
+          so much more natural for an American to write
+  --- ( ) currently we fill in missing parts of the date with that potion from the
+          current date. Behavior should be different for different fields
+  ---- ( ) Year: year of the next occurrence of that date, if on Jan 20 2025 we see
+           a new tasks labeled `1st Jan` the year should probably be 2026
+  ---- ( ) Month: similar, if we see `5th` and it's the first, use the current month,
+           it's it's the 6th, use the next month
+  ---- ( ) Hour, Min, Sec, set to 0
+  -- ( ) Recurring tasks; we don't provide any support for these right now.
+  --- there's a lot of work to do to properly support recurring tasks. I'm putting
+      that off for now
+  - ( ) Potentially provide SQL views, and or provide a way for people to define
+        their own in configuration
   - ( ) improve multi threaded parsing performance
+  - ( ) Keep track of links
   - ( ) Possible optional plaintext support for vector search and specific paragraph
         retrieval. This would increase the size of the DB by a lot
 
@@ -52,4 +69,7 @@ version: 1.1.1
     - joins are annoying to write
     - `path LIKE '%/folder/%'` is at least 6 too many chars to communicate that I want
       things in the `folder` folder
+    - recursive data structures such as task trees don't work well with SQL, we need
+      to do lua processing, which doesn't allow for easy user facing format
+      functionality
 

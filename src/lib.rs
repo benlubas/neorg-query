@@ -1,14 +1,16 @@
 mod db;
 mod doc_parser;
+mod norg_date;
 mod orchestrator;
 
 use std::{collections::HashMap, convert::identity, fs::File, path::Path, sync::OnceLock};
 
 use anyhow::anyhow;
+use dateparser::DateTimeUtc;
 use db::{util::gets_checked, DatabaseConnection};
 use itertools::Itertools;
 use libsql::Row;
-use log::info;
+use log::{info, trace, warn};
 use mlua::prelude::*;
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
@@ -60,16 +62,15 @@ async fn index(_: Lua, path: String) -> LuaResult<bool> {
 
     let p = Path::new(&path);
     if !p.exists() {
-        info!("doesn't exist, {path:?}");
+        warn!("doesn't exist, {path:?}");
         return Err(anyhow!("Path doesn't exist").into_lua_err());
     }
 
-    info!("hi");
     let res = handle
         .spawn(async move {
             let path = Path::new(&path);
             if path.is_file() {
-                info!("indexing file {path:?}");
+                trace!("indexing file {path:?}");
                 orchestrator::index_file(path, db).await
             } else {
                 orchestrator::index_workspace(path, db).await
@@ -77,7 +78,6 @@ async fn index(_: Lua, path: String) -> LuaResult<bool> {
         })
         .await;
 
-    info!("{res:?}");
     Ok(res.is_ok_and(|e| e.is_ok()))
 }
 
@@ -179,17 +179,32 @@ async fn all_categories(_lua: Lua, _: ()) -> LuaResult<Vec<String>> {
 // of userdata values
 fn row2value(row: &Row) -> anyhow::Result<HashMap<String, serde_json::Value>> {
     let mut table: HashMap<String, serde_json::Value> = HashMap::new();
-    info!("{row:?}");
+    trace!("{row:?}");
     for i in 0..row.column_count() {
         let name = row.column_name(i);
         let t = row.column_type(i)?;
         let value = match t {
-            libsql::ValueType::Integer => {
-                Some(serde_json::to_value(row.get_value(i)?.as_integer().unwrap())?)
+            libsql::ValueType::Integer => Some(serde_json::to_value(
+                row.get_value(i)?.as_integer().unwrap(),
+            )?),
+            libsql::ValueType::Real => {
+                Some(serde_json::to_value(row.get_value(i)?.as_real().unwrap())?)
             }
-            libsql::ValueType::Real => Some(serde_json::to_value(row.get_value(i)?.as_real().unwrap())?),
-            libsql::ValueType::Text => Some(serde_json::to_value(row.get_value(i)?.as_text().unwrap())?),
-            libsql::ValueType::Blob => Some(serde_json::to_value(row.get_value(i)?.as_blob().unwrap())?),
+            libsql::ValueType::Text => {
+                Some(row.get_value(i)?.as_text().map(|s| {
+                    if let Some(name) = name {
+                        if ["start", "due", "timestamp"].contains(&name) {
+                            if let Ok(d) = s.parse::<DateTimeUtc>() {
+                                return serde_json::to_value(d.0.timestamp())
+                            }
+                        }
+                    }
+                    serde_json::to_value(s)
+                }).unwrap()?)
+            }
+            libsql::ValueType::Blob => {
+                Some(serde_json::to_value(row.get_value(i)?.as_blob().unwrap())?)
+            }
             libsql::ValueType::Null => None,
         };
         if let Some(value) = value {
@@ -215,7 +230,7 @@ async fn user_query(lua: Lua, (query, params): (String, Vec<String>)) -> LuaResu
         })
         .await;
 
-    let res = res.expect("user_query task failed").expect("something");
+    let res = res.expect("user_query task failed")?;
     let tab = lua.to_value(&res)?;
 
     Ok(tab)
@@ -230,13 +245,22 @@ async fn user_query(lua: Lua, (query, params): (String, Vec<String>)) -> LuaResu
 
 #[mlua::lua_module]
 fn libneorg_query(lua: &Lua) -> LuaResult<LuaTable> {
+    let data_path = lua
+        .load("vim.fn.stdpath('data')")
+        .eval::<String>()
+        .unwrap_or("/tmp".to_string());
+
     CombinedLogger::init(vec![WriteLogger::new(
-        log::LevelFilter::Info,
+        log::LevelFilter::Trace,
         simplelog::Config::default(),
-        File::create("/tmp/neorg-query.log").expect("failed to create log file"),
+        File::create(data_path.clone() + "/neorg-query.log").expect("failed to create log file"),
     )])
     .expect("failed to crate logger");
     log_panics::init();
+
+    if data_path == "/tmp" {
+        info!("Couldn't get data path, logging to `/tmp` instead.");
+    }
 
     let exports = lua.create_table()?;
     exports.set("init", lua.create_async_function(init)?)?;

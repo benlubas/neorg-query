@@ -7,6 +7,7 @@ use ignore::DirEntry;
 use ignore::{types::TypesBuilder, WalkBuilder};
 use log::info;
 use std::convert::identity;
+use std::time;
 use std::{path::Path, sync::mpsc::channel};
 
 /// Parse all the files in the workspace, skipping files that were last edited within a few ms of
@@ -16,6 +17,8 @@ pub async fn index_workspace(
     conn: &DatabaseConnection,
 ) -> Result<()> {
     info!("Indexing {path:?}\n...");
+
+    let start = time::Instant::now();
 
     let mut types = TypesBuilder::new();
     types.add("norg", "*.norg")?;
@@ -27,9 +30,8 @@ pub async fn index_workspace(
     let insert_job = tokio::spawn(async move {
         info!("insert job waiting");
         for doc in rx {
-            if let Some(doc) = doc {
-                // TODO: batch these eventually?
-                x.clone().insert_or_update_doc(&doc).await.unwrap();
+            if let Some(mut doc) = doc {
+                x.clone().insert_or_update_doc(&mut doc).await.unwrap();
             } else {
                 break;
             }
@@ -51,7 +53,7 @@ pub async fn index_workspace(
         .flatten()
     {
         let path = entry.path();
-        if path.is_dir() || !path.extension().is_some_and(|ext| ext == "norg") {
+        if path.is_dir() || path.extension().is_none_or(|ext| ext != "norg") {
             continue;
         }
         let path = path.to_string_lossy();
@@ -63,7 +65,8 @@ pub async fn index_workspace(
         };
 
         info!("Parsing {path:?}");
-        // TODO: this parsing step is expensive, should spawn it into a task probably
+        // TODO: this parsing step is expensive, should spawn it into a task probably. But that
+        // creates some lifetime problem
         if let Ok(doc) = ParsedDocument::new(&path) {
             tx.send(Some(doc)).unwrap();
         };
@@ -73,6 +76,9 @@ pub async fn index_workspace(
     tx.send(None).unwrap();
 
     let _ = insert_job.await;
+
+    let end = time::Instant::now();
+    info!("Index time: {:?}", end - start);
 
     Ok(())
 }
@@ -84,9 +90,9 @@ pub async fn index_file(
 ) -> Result<()> {
     assert!(path.is_file());
 
-    if let Ok(doc) = ParsedDocument::new(path.to_str().unwrap()) {
+    if let Ok(mut doc) = ParsedDocument::new(path.to_str().unwrap()) {
         info!("{doc:?}");
-        conn.insert_or_update_doc(&doc).await?;
+        conn.insert_or_update_doc(&mut doc).await?;
     }
 
     Ok(())
