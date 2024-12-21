@@ -42,7 +42,7 @@ impl DatabaseConnection {
         .await?;
 
         conn.execute(
-            r#"CREATE TRIGGER IF NOT EXISTS on_update
+            r#"CREATE TRIGGER IF NOT EXISTS on_update_docs
             AFTER UPDATE ON docs
             FOR EACH ROW
             BEGIN
@@ -60,6 +60,37 @@ impl DatabaseConnection {
             name VARCHAR(255) NOT NULL,
             FOREIGN KEY(file_id) REFERENCES docs(id),
             UNIQUE (file_id, name) ON CONFLICT IGNORE)"#,
+            (),
+        )
+        .await?;
+
+        conn.execute(
+            r#"CREATE TABLE IF NOT EXISTS tasks
+            (id INTEGER PRIMARY KEY,
+            file_id INTEGER NOT NULL,
+            text TEXT NOT NULL,
+            status VARCHAR(32) NOT NULL,
+            due DATETIME,
+            starts DATETIME,
+            recurs DATETIME,
+            priority VARCHAR(32),
+            parent_id INTEGER,
+            is_heading BOOLEAN,
+            line_number INTEGER,
+            created DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY(file_id) REFERENCES docs(id),
+            FOREIGN KEY(parent_id) REFERENCES tasks(id),
+            UNIQUE (file_id, parent_id, text, line_number) ON CONFLICT ABORT)"#, ()
+        ).await?;
+
+        conn.execute(
+            r#"CREATE TRIGGER IF NOT EXISTS on_update_tasks
+            AFTER UPDATE ON tasks
+            FOR EACH ROW
+            BEGIN
+            UPDATE tasks SET updated = CURRENT_TIMESTAMP WHERE id = old.id;
+            END"#,
             (),
         )
         .await?;

@@ -64,7 +64,6 @@ async fn index(_: Lua, path: String) -> LuaResult<bool> {
         return Err(anyhow!("Path doesn't exist").into_lua_err());
     }
 
-    info!("hi");
     let res = handle
         .spawn(async move {
             let path = Path::new(&path);
