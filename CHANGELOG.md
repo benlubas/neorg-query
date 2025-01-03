@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.1](https://github.com/benlubas/neorg-query/compare/v1.1.0...v1.1.1) (2025-01-03)
+
+
+### Bug Fixes
+
+* **ci:** package neorg_query.formatter in luarock ([6b86dc7](https://github.com/benlubas/neorg-query/commit/6b86dc7c3077a0384b9853f48e8e1cdcb4fa5aaf))
+
 ## [1.1.0](https://github.com/benlubas/neorg-query/compare/v1.0.2...v1.1.0) (2024-12-16)
 
 
