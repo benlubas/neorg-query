@@ -4,7 +4,8 @@ This project has a few names. Neorq is fun, but too easy to typo, and bad for se
 
 > [!WARNING]
 > Massive WIP. If you're going to use this, treat any update as a breaking change until this warning
-> is gone.
+> is gone. Also, the rust side might panic. If that happens, create a bug report. I'll remove all
+> the unwrap/expects later
 
 > [!NOTE]
 > This is not [Neorg macros](https://vhyrro.github.io/posts/neorg-macros/), this is a third party
@@ -19,7 +20,9 @@ A database and query interface for your notes.
 ## Install
 
 > [!NOTE]
-> You will need to have the rust toolchain installed to build this plugin
+> You will need to have the rust toolchain installed to build this plugin, and it might take two or
+> even three tries as it can hit lazy's build timeout. Each successive attempt will make it further
+> thanks to caching, so just keep trying, or increase the timeout (refer to lazy docs)
 
 <details>
   <summary>Lazy.nvim</summary>
