@@ -5,7 +5,7 @@ This project has a few names. Neorq is fun, but too easy to typo, and bad for se
 > [!WARNING]
 > Massive WIP. If you're going to use this, treat any update as a breaking change until this warning
 > is gone. Also, the rust side might panic. If that happens, create a bug report. I'll remove all
-> the unwrap/expects later
+> the unwrap/expects later.
 
 > [!NOTE]
 > This is not [Neorg macros](https://vhyrro.github.io/posts/neorg-macros/), this is a third party
