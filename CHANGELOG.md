@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.0](https://github.com/benlubas/neorg-query/compare/v1.1.1...v1.2.0) (2025-01-22)
+
+
+### Features
+
+* relese tasks ([e0034ee](https://github.com/benlubas/neorg-query/commit/e0034ee95b73d0f6421e12480e8a23d3c4bfb2d1))
+
 ## [1.1.1](https://github.com/benlubas/neorg-query/compare/v1.1.0...v1.1.1) (2025-01-03)
 
 
