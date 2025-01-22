@@ -59,5 +59,8 @@ result from rust.
 
 ## Neorg Module
 
-The neorg module handles all of the user facing code. Anything that the user interacts with will go
-here. This is also where auto commands and configuration are handled.
+The neorg module handles all of the user facing code. Anything that the user interacts with is here.
+Also contains autocommands and configuration.
+
+The format module is currently in a plain lua modules, but it's going to be moved to a neorg module
+soon enough.

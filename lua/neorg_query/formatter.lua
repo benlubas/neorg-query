@@ -45,4 +45,44 @@ M.apply_mods = function(ws, mod_string, name, value)
     return value
 end
 
+---Return a string representation of the task's detached modifier extensions
+---@param task table
+M.task_extensions = function(task)
+    local strs = {}
+    if task.status then
+        table.insert(strs, ({
+            ["Undone"] = " ",
+            ["Done"] = "x",
+            ["NeedsClarification"] = "?",
+            ["Pending"] = "-",
+            ["Canceled"] = "_",
+            ["Urgent"] = "!",
+            ["Paused"] = "=",
+            -- NOTE: recurring is a special case that we're not supporting right now
+        })[task.status])
+    end
+    if task.priority then
+        table.insert(strs, "# " .. task.priority)
+    end
+    local function time(val)
+        if type(val) == "number" then
+            local d = os.date("!*t", val)
+            local date = require("neorg.modules.core.tempus.module").public.to_date(d)
+            return tostring(date)
+        end
+        return val -- if we get a string, we're not going to deal with it
+    end
+    if task.starts then
+        table.insert(strs, "> " .. time(task.starts))
+    end
+    if task.due then
+        table.insert(strs, "< " .. time(task.due))
+    end
+    if task.timestamp then
+        table.insert(strs, "@ " .. time(task.timestamp))
+    end
+
+    return "("..table.concat(strs, "|")..")"
+end
+
 return M

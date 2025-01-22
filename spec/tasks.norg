@@ -1,0 +1,36 @@
+@document.meta
+title: Tasks Test
+description: This is a test file to see how the task parsing is going
+authors: benlubas
+categories: [
+  tasks
+  tests
+]
+created: 2025-01-04T16:28:14-0500
+updated: 2025-01-04T18:04:34-0500
+version: 1.1.1
+@end
+
+* non-task heading
+
+  I have some things to do, I'm going to list them below
+
+** (x) Task 0, Done
+** ( ) Task 1, undone
+** ( |< Sunday, 12th Jan) Task 2, undone, due next Sunday
+** ( |@ Saturday 11th Jan) Attend Event on Saturday
+   This event has some notes
+** ( |> Saturday 11th Jan) Task 3, undone, starts next Saturday
+*** ( ) Sub task one
+*** ( ) Sub task two
+**** ( ) sub sub
+***** ( ) Sub sub sub
+****** ( ) Sub sub sub sub
+*** ( ) Sub task three
+*** (_) Sub task canceled
+    This was canceled b/c blah
+    ===
+
+Note that normal list items are not parsed/indexed yet
+- ( ) this isn't counted
+-- ( ) neither is this
