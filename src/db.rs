@@ -77,7 +77,7 @@ impl DatabaseConnection {
             priority VARCHAR(32),
             timestamp DATETIME,
             parent_id INTEGER,
-            created DATETIME DEFAULT CURRENT_TIMESTAMP,
+            created DATETIME NOT NULL ON CONFLICT REPLACE DEFAULT CURRENT_TIMESTAMP,
             updated DATETIME DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY(file_id) REFERENCES docs(id),
             FOREIGN KEY(parent_id) REFERENCES tasks(task_id),
@@ -94,7 +94,7 @@ impl DatabaseConnection {
         let mut rows = self.conn.query(
             "INSERT INTO docs (path, title, description, authors, created, updated)
              VALUES (?1, ?2, ?3, ?4, ?5, ?6)
-             ON CONFLICT(path) DO UPDATE SET title=excluded.title, description=excluded.description, authors=excluded.authors, updated=excluded.updated
+             ON CONFLICT(path) DO UPDATE SET title=excluded.title, description=excluded.description, authors=excluded.authors, updated=excluded.updated, created=excluded.created
              RETURNING id",
             doc.doc_params(),
         ).await?;
