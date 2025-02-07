@@ -38,6 +38,8 @@ end
 build = {
     type = "rust-mlua",
 
+    default_features = false,
+
     modules = {
         ["libneorg_query"] = "neorg_query",
     },
