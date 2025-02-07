@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.3.0](https://github.com/benlubas/neorg-query/compare/v1.2.0...v1.3.0) (2025-02-07)
+
+
+### Features
+
+* luajit support ([d592e42](https://github.com/benlubas/neorg-query/commit/d592e42e254ec2a7614577e7651e41a87c7f50ce))
+
+
+### Bug Fixes
+
+* tasks.created populated, update doc.created if it changes ([8f2a8b4](https://github.com/benlubas/neorg-query/commit/8f2a8b4b99326ef8cbe48b36b7dba4885aea4f2f))
+
 ## [1.2.0](https://github.com/benlubas/neorg-query/compare/v1.1.1...v1.2.0) (2025-01-22)
 
 
