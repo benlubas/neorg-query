@@ -11,6 +11,7 @@ crate-type = ["cdylib"]
 
 [features]
 lua51 = ["mlua/lua51"]
+luajit = ["mlua/luajit"]
 
 [dependencies]
 anyhow = "1.0.86"
