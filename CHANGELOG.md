@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.3.1](https://github.com/benlubas/neorg-query/compare/v1.3.0...v1.3.1) (2025-02-07)
+
+
+### Bug Fixes
+
+* features, and mlua build ([719ed21](https://github.com/benlubas/neorg-query/commit/719ed2169de75f52976ce1dabd826aca571bb893))
+
 ## [1.3.0](https://github.com/benlubas/neorg-query/compare/v1.2.0...v1.3.0) (2025-02-07)
 
 
