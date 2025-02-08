@@ -415,7 +415,7 @@ module.private["todo-changed"] = function(event)
     local query = vim.treesitter.query.parse("norg", query_str)
     local tree = parser:parse()[1]
     local info = {}
-    for _, match in query:iter_matches(tree:root(), event.line_content) do
+    for _, match in query:iter_matches(tree:root(), event.line_content, 0, -1, { all = false }) do
         for id, node in pairs(match) do
             local name = query.captures[id]
             info[name] = {
