@@ -193,6 +193,9 @@ module.private.find_sql_tags = function(buf)
             tags[name] = args
             lnr = lnr - 1
         end
+        if lnr == 0 then
+            tags["start"] = 1
+        end
 
         lnr = range.row_start + 1
         while lnr <= #lines do
