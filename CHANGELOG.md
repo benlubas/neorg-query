@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.3.2](https://github.com/benlubas/neorg-query/compare/v1.3.1...v1.3.2) (2025-03-16)
+
+
+### Bug Fixes
+
+* set query start when at the top of the file ([922c5b5](https://github.com/benlubas/neorg-query/commit/922c5b555a46d3e1318e6893a8b16552490486a4))
+
 ## [1.3.1](https://github.com/benlubas/neorg-query/compare/v1.3.0...v1.3.1) (2025-02-07)
 
 
