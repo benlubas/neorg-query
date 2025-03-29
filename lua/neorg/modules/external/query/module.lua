@@ -19,10 +19,16 @@ local formatter
 local neorq_rs
 ---@type core.dirman
 local dirman
+---@type core.dirman.utils
+local dirman_utils
 ---@type core.integrations.treesitter
 local ts
 ---@type core.esupports.indent
 local indent
+---@type core.qol.todo_items
+local todo_items
+---@type core.esupports.hop
+local hop
 
 -- in the future we'll have "query" too
 --- "sql" is the potentially multiline syntax in `|neorq`
@@ -60,10 +66,13 @@ module.setup = function()
         success = ok,
         requires = {
             "core.dirman",
+            "core.dirman.utils",
             "core.neorgcmd",
             "core.ui.text_popup",
             "core.integrations.treesitter",
             "core.esupports.indent",
+            "core.esupports.hop",
+            "core.qol.todo_items",
         },
     }
 end
@@ -94,10 +103,16 @@ module.load = function()
 
     ---@type core.dirman
     dirman = module.required["core.dirman"]
+    ---@type core.dirman.utils
+    dirman_utils = module.required["core.dirman.utils"]
     ---@type core.integrations.treesitter
     ts = module.required["core.integrations.treesitter"]
     ---@type core.esupports.indent
     indent = module.required["core.esupports.indent"]
+    ---@type core.qol.todo_items
+    todo_items = module.required["core.qol.todo_items"]
+    ---@type core.esupports.hop
+    hop = module.required["core.esupports.hop"]
     formatter = require("neorg_query.formatter")
 
     local ws = dirman.get_current_workspace()
@@ -160,6 +175,9 @@ module.events.subscribed = {
         ["query.run"] = true,
         ["query.index"] = true,
         ["query.clear"] = true,
+    },
+    ["core.qol.todo_items"] = {
+        ["todo-changed"] = true,
     },
 }
 
@@ -374,6 +392,65 @@ module.private["query.clear"] = function(event)
         if row > tag.content_start then
             vim.api.nvim_win_set_cursor(event.window, { tag.content_start - 1, event.cursor_position[2] })
         end
+    end
+end
+
+module.private["todo-changed"] = function(event)
+    local tag = current_tag(event.content.line + 1, event.buffer)
+    if not tag then
+        return
+    end
+
+    local query_str = [[
+    (paragraph
+      (paragraph_segment
+        (link
+          (link_location file: (link_file_text) @path)
+          (link_description text: (paragraph) @desc (#eq? @desc ""))
+        ) @link
+      )
+    ) @content]]
+
+    local parser = vim.treesitter.get_string_parser(event.line_content, "norg")
+    local query = vim.treesitter.query.parse("norg", query_str)
+    local tree = parser:parse()[1]
+    local info = {}
+    for _, match in query:iter_matches(tree:root(), event.line_content) do
+        for id, node in pairs(match) do
+            local name = query.captures[id]
+            info[name] = {
+                text = ts.get_node_text(node, event.line_content),
+                node = node,
+            }
+        end
+    end
+    if not info["path"] then
+        log.warn("Task doesn't seem to have a link, Neorq can't update the source task")
+        return
+    end
+
+    local path = dirman_utils.expand_pathlib(info["path"].text)
+    if not path then
+        log.warn("Task path didn't resolve, Neorq can't update the source task")
+        return
+    end
+    local content = info["content"].text:sub(2, info["content"].text:len() - info["link"].text:len() - 1)
+
+    local workspace_path = dirman.get_current_workspace()[2]
+    local res = vim.system({
+        "rg",
+        "-i",
+        "--column",
+        "-o",
+        ([[^\s*\*+ \(.*\) %s]]):format(content),
+        tostring(path),
+    }, { cwd = tostring(workspace_path)}):wait()
+    if res.code == 0 then
+        local line = res.stdout:match("^(%d+):")
+        local bufnr = vim.uri_to_bufnr(path:as_uri())
+        vim.schedule(function()
+            todo_items.set_at(bufnr, line, event.content.char)
+        end)
     end
 end
 
