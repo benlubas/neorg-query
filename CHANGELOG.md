@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.4.0](https://github.com/benlubas/neorg-query/compare/v1.3.1...v1.4.0) (2025-03-29)
+
+
+### Features
+
+* update source tasks when updating tasks in #tasks result ([688b4fd](https://github.com/benlubas/neorg-query/commit/688b4fd5582bc4994768aa567007727df01e0ce4))
+
+
+### Bug Fixes
+
+* set query start when at the top of the file ([922c5b5](https://github.com/benlubas/neorg-query/commit/922c5b555a46d3e1318e6893a8b16552490486a4))
+
 ## [1.3.1](https://github.com/benlubas/neorg-query/compare/v1.3.0...v1.3.1) (2025-02-07)
 
 
