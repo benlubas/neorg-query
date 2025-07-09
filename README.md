@@ -50,13 +50,15 @@ Load the module by adding it to your neorg configuration.
 ```lua
 -- default values
 ["external.query"] = {
-    -- Populate the database. Indexing happens on a separate thread, so doesn't block
-    -- neovim. Funny enough, this is the only user facing way to trigger a full index of your
-    -- workspace at the moment
-    index_on_launch = true,
+    config = {
+        -- Populate the database. Indexing happens on a separate thread, so doesn't block
+        -- neovim. Funny enough, this is the only user facing way to trigger a full index of your
+        -- workspace at the moment
+        index_on_launch = true,
 
-    -- Update the db entry when a file is written
-    update_on_change = true,
+        -- Update the db entry when a file is written
+        update_on_change = true,
+    }
 }
 ```
 
