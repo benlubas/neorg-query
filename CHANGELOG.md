@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.4.1](https://github.com/benlubas/neorg-query/compare/v1.4.0...v1.4.1) (2025-07-12)
+
+
+### Bug Fixes
+
+* wasn't using { all = false } in iter_matches ([e330441](https://github.com/benlubas/neorg-query/commit/e330441ba962e62e745a849ebbb2d22bb402c50a))
+
 ## [1.4.0](https://github.com/benlubas/neorg-query/compare/v1.3.1...v1.4.0) (2025-03-29)
 
 
