@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.4.1](https://github.com/benlubas/neorg-query/compare/v1.4.0...v1.4.1) (2026-03-24)
+
+
+### Bug Fixes
+
+* update rust parser ([4423abd](https://github.com/benlubas/neorg-query/commit/4423abdfa30f2d3e310cfbb7dc16a5340449f763))
+* wasn't using { all = false } in iter_matches ([e330441](https://github.com/benlubas/neorg-query/commit/e330441ba962e62e745a849ebbb2d22bb402c50a))
+
 ## [1.4.0](https://github.com/benlubas/neorg-query/compare/v1.3.1...v1.4.0) (2025-03-29)
 
 
