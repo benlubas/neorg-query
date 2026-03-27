@@ -287,6 +287,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "cmake"
+version = "0.1.54"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e7caa3f9de89ddbe2c607f4101924c5abec803763ae9534e4f4d7d8f84aa81f0"
+dependencies = [
+ "cc",
+]
+
+[[package]]
 name = "colog"
 version = "1.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -700,15 +709,16 @@ dependencies = [
 
 [[package]]
 name = "libsql"
-version = "0.6.0"
+version = "0.9.29"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fe18646e4ef8db446bc3e3f5fb96131483203bc5f4998ff149f79a067530c01c"
+checksum = "2329faffc510cc3c6b4f00169a39177cc7099d3ed7647fc92f7cf26e53a8d976"
 dependencies = [
  "async-trait",
  "bitflags",
  "bytes",
  "futures",
  "libsql-sys",
+ "parking_lot",
  "serde",
  "thiserror",
  "tracing",
@@ -716,19 +726,21 @@ dependencies = [
 
 [[package]]
 name = "libsql-ffi"
-version = "0.5.0"
+version = "0.9.29"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5f2a50a585a1184a43621a9133b7702ba5cb7a87ca5e704056b19d8005de6faf"
+checksum = "6cd1c1662822495393327856774f6803be25d85bfdcd5b9d4af35458f5daaf75"
 dependencies = [
  "bindgen",
  "cc",
+ "cmake",
+ "glob",
 ]
 
 [[package]]
 name = "libsql-sys"
-version = "0.8.0"
+version = "0.9.29"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5c05b61c226781d6f5e26e3e7364617f19c0c1d5332035802e9229d6024cec05"
+checksum = "2a3c326fcfc36fe7578238d5ee6b58c529f8c76372acd61ec50267529cdaff95"
 dependencies = [
  "bytes",
  "libsql-ffi",

@@ -28,7 +28,7 @@ serde = "1.0.204"
 rust-norg = { git = "https://github.com/nvim-neorg/rust-norg", branch = "main" }
 serde_json = "1.0.120"
 simplelog = "0.12.2"
-libsql = { version = "0.6.0", default-features = false, features = ["core", "serde"] }
+libsql = { version = "0.9.1", default-features = false, features = ["core", "serde"] }
 itertools = "0.13.0"
 walkdir = "2.5.0"
 dateparser = "0.2.1"
